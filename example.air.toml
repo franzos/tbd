@@ -1,0 +1,20 @@
+[build]
+  cmd = "CGO_ENABLED=1 go build ."
+  bin = "tbd"
+  log = "air.log"
+
+[watch]
+  includes = ["."]
+  excludes = ["tmp", "vendor"]
+
+[logger]
+  level = "info"
+  output = "air.log"
+
+[on_error]
+  command = ""
+  output = "/dev/null"
+
+[on_shutdown]
+  command = ""
+  output = "/dev/null"
