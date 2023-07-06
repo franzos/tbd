@@ -40,3 +40,23 @@ func (base *File) BeforeCreate(tx *gorm.DB) (err error) {
 	base.ID = id.String()
 	return
 }
+
+func (f File) ToPublicFormat() interface{} {
+	return PublicFile{
+		ID:    f.ID,
+		Title: f.Title,
+		Path:  f.Path,
+	}
+}
+
+func publicFilesFromFiles(files []File) []PublicFile {
+	var publicFiles []PublicFile
+	for _, v := range files {
+		publicFiles = append(publicFiles, PublicFile{
+			ID:    v.ID,
+			Title: v.Title,
+			Path:  v.Path,
+		})
+	}
+	return publicFiles
+}

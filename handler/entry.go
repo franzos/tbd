@@ -12,16 +12,10 @@ import (
 	"tbd/model"
 )
 
-var entryTypes = []string{
-	"apartment-short-term-rental",
-	"apartment-long-term-rental",
-	"apartment-sale",
-}
-
 func (h *Handler) CreateEntry(c echo.Context) error {
-	u, err := userFromToken(c)
-	if err != nil {
-		log.Printf("error: %v", err)
+	u, httpErr := userFromContext(c)
+	if httpErr != nil {
+		log.Printf("error: %v", httpErr)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
 	}
 
@@ -40,7 +34,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		Data: s.Data,
 	}
 
-	if !validateEntryType(e.Type) {
+	if !e.TypeIsValid() {
 		log.Printf("Type is not supported.")
 		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Type is not supported."}
 	}
@@ -105,7 +99,7 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
-	return c.JSON(http.StatusOK, modelPublicEntries(entries))
+	return c.JSON(http.StatusOK, responseArrFormatter[model.Entry](entries, nil))
 }
 
 func (h *Handler) FetchEntry(c echo.Context) error {
@@ -121,7 +115,7 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
 	}
 
-	return c.JSON(http.StatusOK, modelPublicEntry(entry))
+	return c.JSON(http.StatusOK, responseFormatter[model.Entry](entry, nil))
 }
 
 func (h *Handler) DeleteEntry(c echo.Context) error {

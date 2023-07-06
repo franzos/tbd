@@ -29,16 +29,15 @@ func fileExtentionFromFileName(fileName string) (string, error) {
 }
 
 func (h *Handler) CreateFiles(c echo.Context) error {
-	u, err := userFromToken(c)
-	if err != nil {
-		log.Printf("error: %v", err)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
+	u, httpErr := userFromContext(c)
+	if httpErr != nil {
+		return httpErr
 	}
 
 	// Multipart form
 	form, err := c.MultipartForm()
 	if err != nil {
-		return err
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Failed to parse multipart form."}
 	}
 	files := form.File["files"]
 
@@ -112,4 +111,17 @@ func (h *Handler) CreateFiles(c echo.Context) error {
 	return c.JSON(http.StatusCreated, struct {
 		Files []model.File `json:"files"`
 	}{Files: dbFiles})
+}
+
+func (h *Handler) GetFiles(c echo.Context) error {
+	files := []model.File{}
+	r := h.DB.Find(&files)
+	if r.Error != nil {
+		log.Printf("Failed to get files from DB: %v", r.Error)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get files from DB"}
+	}
+
+	return c.JSON(http.StatusOK, struct {
+		Files []model.File `json:"files"`
+	}{Files: files})
 }

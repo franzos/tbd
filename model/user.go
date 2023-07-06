@@ -51,3 +51,21 @@ type JwtCustomClaims struct {
 	Roles string `json:"roles"`
 	jwt.RegisteredClaims
 }
+
+func (user User) ToPublicFormat() PublicUser {
+	return PublicUser{
+		ID:        user.ID,
+		Data:      user.Data,
+		CreatedAt: user.CreatedAt,
+	}
+}
+
+func (user User) IsAdmin() bool {
+	for _, v := range user.Roles {
+		if v == "admin" {
+			return true
+		}
+	}
+
+	return false
+}

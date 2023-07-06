@@ -45,3 +45,31 @@ type SubmitEntry struct {
 	Data  datatypes.JSON `json:"data" validate:"required"`
 	Files []File         `json:"files" gorm:"many2many:entry_files;"`
 }
+
+var entryTypes = []string{
+	// > 3 months
+	"apartment-short-term-rental",
+	// < 3 months
+	"apartment-long-term-rental",
+	"apartment-sale",
+}
+
+func (e Entry) TypeIsValid() bool {
+	for _, v := range entryTypes {
+		if v == e.Type {
+			return true
+		}
+	}
+	return false
+}
+
+func (e Entry) ToPublicFormat() interface{} {
+	return PublicEntry{
+		ID:        e.ID,
+		Type:      e.Type,
+		Data:      e.Data,
+		Files:     publicFilesFromFiles(e.Files),
+		CreatedBy: e.CreatedBy.ToPublicFormat(),
+		CreatedAt: e.CreatedAt,
+	}
+}

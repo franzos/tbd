@@ -89,10 +89,10 @@ func (h *Handler) Login(c echo.Context) error {
 }
 
 func (h *Handler) Me(c echo.Context) error {
-	u, err := userFromToken(c)
-	if err != nil {
+	u, httpErr := userFromContext(c)
+	if httpErr != nil {
 		// server error
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: err}
+		return httpErr
 	}
 
 	r := h.DB.First(&u)
@@ -108,10 +108,10 @@ func (h *Handler) Me(c echo.Context) error {
 }
 
 func (h *Handler) UpdateMe(c echo.Context) error {
-	u, err := userFromToken(c)
-	if err != nil {
+	u, httpErr := userFromContext(c)
+	if httpErr != nil {
 		// server error
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: err}
+		return httpErr
 	}
 
 	nu := model.User{}
