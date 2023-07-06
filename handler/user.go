@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -29,6 +30,8 @@ func (h *Handler) Signup(c echo.Context) error {
 	if err != nil {
 		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
+	// TODO: Set unconfirmed until email or phone is confirmed
+	u.Roles = []string{"member"}
 	u.Password = string(hash)
 
 	r := h.DB.Create(&u)
@@ -71,7 +74,7 @@ func (h *Handler) Login(c echo.Context) error {
 
 	// Assemble JWT
 	claims := &model.JwtCustomClaims{
-		Roles: "default",
+		Roles: strings.Join(u.Roles, ","),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
 			Subject:   u.ID,
@@ -89,7 +92,7 @@ func (h *Handler) Login(c echo.Context) error {
 }
 
 func (h *Handler) Me(c echo.Context) error {
-	u, httpErr := userFromContext(c)
+	u, httpErr := UserFromContextHttpError(c)
 	if httpErr != nil {
 		// server error
 		return httpErr
@@ -108,7 +111,7 @@ func (h *Handler) Me(c echo.Context) error {
 }
 
 func (h *Handler) UpdateMe(c echo.Context) error {
-	u, httpErr := userFromContext(c)
+	u, httpErr := UserFromContextHttpError(c)
 	if httpErr != nil {
 		// server error
 		return httpErr

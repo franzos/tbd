@@ -12,7 +12,7 @@ import (
 type Entry struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
 	Type        string         `json:"type" validate:"required"`
-	Data        datatypes.JSON `json:"data" validate:"required"`
+	Data        datatypes.JSON `json:"data" validate:"required" gorm:"serializer:json"`
 	Files       []File         `json:"files" gorm:"many2many:entry_files;"`
 	CreatedByID string         `json:"-"`
 	CreatedBy   User           `json:"created_by" gorm:"foreignKey:CreatedByID"`

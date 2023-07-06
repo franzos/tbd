@@ -1,0 +1,13 @@
+p, admin, /*, *
+p, anonymous, /signup, write
+p, anonymous, /login, write
+p, anonymous, /entries, read
+p, anonymous, /entries/:id, read
+p, member, /entries, write
+p, member, /entries/:id, write
+p, member, /files/multi, write
+p, member, /files/:id, write
+p, member, /account/me, read
+p, member, /account/me, write
+g, anonymous, member
+g, member, admin

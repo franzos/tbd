@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 func checkConfig() {
 	requiredConfig := []string{"JWT_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME", "AWS_REGION"}
@@ -10,6 +13,33 @@ func checkConfig() {
 		if os.Getenv(v) == "" {
 			panic("Missing required config: " + v)
 		}
+	}
+
+	file1 := "./auth_model.conf"
+	file2 := "./policy.csv"
+
+	// Check if file1 exists
+	_, err := os.Stat(file1)
+	if err != nil {
+		if os.IsNotExist(err) {
+			panic("Missing required config: " + file1)
+		} else {
+			fmt.Printf("Error checking file %s: %v\n", file1, err)
+		}
+	} else {
+		fmt.Printf("File %s exists\n", file1)
+	}
+
+	// Check if file2 exists
+	_, err = os.Stat(file2)
+	if err != nil {
+		if os.IsNotExist(err) {
+			panic("Missing required config: " + file2)
+		} else {
+			panic("Error checking file " + file2)
+		}
+	} else {
+		fmt.Printf("File %s exists\n", file2)
 	}
 }
 

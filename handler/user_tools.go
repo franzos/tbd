@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"strings"
 	"tbd/model"
 
@@ -10,18 +11,22 @@ import (
 )
 
 // This returns a HTTP errror if anything goes wrong; to be used directly in the handler
-func userFromContext(c echo.Context) (model.User, *echo.HTTPError) {
-	jwtToken := c.Get("user").(*jwt.Token)
+func UserFromContext(c echo.Context) (model.User, error) {
+	user := c.Get("user")
+	if user == nil {
+		return model.User{}, fmt.Errorf("user not found in context")
+	}
+	jwtToken := user.(*jwt.Token)
 
 	claims, err := jwtToken.Claims.(*model.JwtCustomClaims)
 	if !err {
-		return model.User{}, &echo.HTTPError{Code: 500, Message: "error parsing claims"}
+		return model.User{}, fmt.Errorf("error getting claims")
 	}
 
 	// To make sure it's a valid uuid
 	id, pErr := uuid.Parse(claims.Subject)
 	if pErr != nil {
-		return model.User{}, &echo.HTTPError{Code: 500, Message: "invalid subject; expected UUID"}
+		return model.User{}, fmt.Errorf("error parsing uuid")
 	}
 
 	u := model.User{}
@@ -30,4 +35,12 @@ func userFromContext(c echo.Context) (model.User, *echo.HTTPError) {
 	u.Roles = roles
 
 	return u, nil
+}
+
+func UserFromContextHttpError(c echo.Context) (model.User, *echo.HTTPError) {
+	result, err := UserFromContext(c)
+	if err != nil {
+		return model.User{}, &echo.HTTPError{Code: 500, Message: err}
+	}
+	return result, nil
 }

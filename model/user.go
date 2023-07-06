@@ -15,7 +15,7 @@ type User struct {
 	Email     string         `json:"email" gorm:"uniqueIndex" validate:"required,email"`
 	Phone     string         `json:"phone,omitempty"`
 	Password  string         `json:"password,omitempty" validate:"required"`
-	Roles     []string       `json:"roles,omitempty" gorm:"type:text[]"`
+	Roles     []string       `json:"roles" gorm:"serializer:json;default:'[]'"`
 	Data      datatypes.JSON `json:"data"`
 	CreatedAt time.Time
 	UpdatedAt time.Time

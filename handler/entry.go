@@ -13,7 +13,7 @@ import (
 )
 
 func (h *Handler) CreateEntry(c echo.Context) error {
-	u, httpErr := userFromContext(c)
+	u, httpErr := UserFromContextHttpError(c)
 	if httpErr != nil {
 		log.Printf("error: %v", httpErr)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
