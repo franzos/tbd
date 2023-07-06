@@ -26,7 +26,7 @@ func validateEntryType(t string) bool {
 	return false
 }
 
-func (h *Handler) CreateEntry(c echo.Context) (err error) {
+func (h *Handler) CreateEntry(c echo.Context) error {
 	u, err := userFromToken(c)
 	if err != nil {
 		log.Printf("error: %v", err)
@@ -34,11 +34,11 @@ func (h *Handler) CreateEntry(c echo.Context) (err error) {
 	}
 
 	s := model.SubmitEntry{}
-	if err = c.Bind(&s); err != nil {
-		return
+	if err := c.Bind(&s); err != nil {
+		return err
 	}
 
-	if err = c.Validate(&s); err != nil {
+	if err := c.Validate(&s); err != nil {
 		fmt.Println(err)
 		return err
 	}
@@ -79,16 +79,11 @@ func (h *Handler) CreateEntry(c echo.Context) (err error) {
 	return c.JSON(http.StatusCreated, e)
 }
 
-func (h *Handler) UpdateEntry(c echo.Context) (err error) {
-	if err != nil {
-		log.Printf("error: %v", err)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
-	}
-
+func (h *Handler) UpdateEntry(c echo.Context) error {
 	id := c.Param("id")
 	entry := model.Entry{}
-	if err = c.Bind(&entry); err != nil {
-		return
+	if err := c.Bind(&entry); err != nil {
+		return err
 	}
 
 	// We really only allow updating the data field for now
@@ -100,7 +95,7 @@ func (h *Handler) UpdateEntry(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
 }
 
-func (h *Handler) FetchEntries(c echo.Context) (err error) {
+func (h *Handler) FetchEntries(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
@@ -113,8 +108,8 @@ func (h *Handler) FetchEntries(c echo.Context) (err error) {
 	}
 
 	entries := []model.Entry{}
-	error := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
-	if error != nil {
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
+	if err != nil {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
@@ -124,20 +119,16 @@ func (h *Handler) FetchEntries(c echo.Context) (err error) {
 func (h *Handler) FetchEntry(c echo.Context) error {
 	id := c.Param("id")
 
-	log.Println(id)
-
 	var entry = model.Entry{ID: id}
 	err := h.DB.First(&entry).Error
 	if err != nil {
 		return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
 	}
 
-	log.Println(entry.ID)
-
 	return c.JSON(http.StatusOK, entry)
 }
 
-func (h *Handler) DeleteEntry(c echo.Context) (err error) {
+func (h *Handler) DeleteEntry(c echo.Context) error {
 	id := c.Param("id")
 
 	r := h.DB.Delete(model.Entry{ID: id})

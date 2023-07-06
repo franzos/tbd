@@ -28,7 +28,7 @@ func fileExtentionFromFileName(fileName string) (string, error) {
 	return "", fmt.Errorf("no extention found")
 }
 
-func (h *Handler) CreateFiles(c echo.Context) (err error) {
+func (h *Handler) CreateFiles(c echo.Context) error {
 	u, err := userFromToken(c)
 	if err != nil {
 		log.Printf("error: %v", err)
@@ -47,7 +47,7 @@ func (h *Handler) CreateFiles(c echo.Context) (err error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(os.Getenv("AWS_REGION")))
 	if err != nil {
 		log.Printf("error: %v", err)
-		return
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to configure upload client."}
 	}
 
 	client := s3.NewFromConfig(cfg)

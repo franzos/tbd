@@ -17,13 +17,13 @@ import (
 	"tbd/model"
 )
 
-func (h *Handler) Signup(c echo.Context) (err error) {
+func (h *Handler) Signup(c echo.Context) error {
 	u := model.User{}
-	if err = c.Bind(&u); err != nil {
-		return
+	if err := c.Bind(&u); err != nil {
+		return err
 	}
 
-	if err = c.Validate(&u); err != nil {
+	if err := c.Validate(&u); err != nil {
 		return err
 	}
 
@@ -40,21 +40,21 @@ func (h *Handler) Signup(c echo.Context) (err error) {
 		if (r.Error).Error() == "UNIQUE constraint failed: users.email" {
 			return &echo.HTTPError{Code: http.StatusConflict, Message: "User with email already exists. Reset password?"}
 		}
-		return
+		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
 	u.Password = ""
 	return c.JSON(http.StatusCreated, u)
 }
 
-func (h *Handler) Login(c echo.Context) (err error) {
+func (h *Handler) Login(c echo.Context) error {
 	f := model.UserLogin{}
-	if err = c.Bind(&f); err != nil {
-		return
+	if err := c.Bind(&f); err != nil {
+		return err
 	}
 
-	if err = c.Validate(&f); err != nil {
-		return
+	if err := c.Validate(&f); err != nil {
+		return err
 	}
 
 	u := model.User{}
@@ -63,7 +63,7 @@ func (h *Handler) Login(c echo.Context) (err error) {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusUnauthorized, Message: "Invalid email or password."}
 		}
-		return
+		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
 	// Check password hash
@@ -91,7 +91,7 @@ func (h *Handler) Login(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, model.UserLoginResponse{Token: signedToken})
 }
 
-func (h *Handler) Me(c echo.Context) (err error) {
+func (h *Handler) Me(c echo.Context) error {
 	u, err := userFromToken(c)
 	if err != nil {
 		// server error
@@ -103,14 +103,14 @@ func (h *Handler) Me(c echo.Context) (err error) {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
 		}
-		return
+		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
 	u.Password = ""
 	return c.JSON(http.StatusOK, u)
 }
 
-func (h *Handler) UpdateMe(c echo.Context) (err error) {
+func (h *Handler) UpdateMe(c echo.Context) error {
 	u, err := userFromToken(c)
 	if err != nil {
 		// server error
@@ -118,8 +118,8 @@ func (h *Handler) UpdateMe(c echo.Context) (err error) {
 	}
 
 	nu := model.User{}
-	if err = c.Bind(&nu); err != nil {
-		return
+	if err := c.Bind(&nu); err != nil {
+		return err
 	}
 
 	// We really only allow updating the data field for now
@@ -128,7 +128,7 @@ func (h *Handler) UpdateMe(c echo.Context) (err error) {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
 		}
-		return
+		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
