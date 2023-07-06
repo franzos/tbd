@@ -1,8 +1,10 @@
 package main
 
 import (
+	"net/http"
 	"os"
 
+	"github.com/go-playground/validator"
 	"github.com/golang-jwt/jwt/v5"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
@@ -16,6 +18,18 @@ import (
 	"tbd/handler"
 	"tbd/model"
 )
+
+type CustomValidator struct {
+	validator *validator.Validate
+}
+
+func (cv *CustomValidator) Validate(i interface{}) error {
+	if err := cv.validator.Struct(i); err != nil {
+		// Optionally, you could return the error to give each route more control over the status code
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return nil
+}
 
 func main() {
 	gotenv.Load()
@@ -66,6 +80,7 @@ func main() {
 	db.AutoMigrate(&model.User{}, &model.Entry{}, &model.File{})
 
 	// Initialize handler
+	e.Validator = &CustomValidator{validator: validator.New()}
 	h := &handler.Handler{DB: db}
 
 	// Routes

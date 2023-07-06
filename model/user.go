@@ -12,9 +12,9 @@ import (
 
 type User struct {
 	ID        string         `json:"id" gorm:"type:uuid;primarykey"`
-	Email     string         `json:"email" gorm:"uniqueIndex"`
-	Phone     string         `json:"phone"`
-	Password  string         `json:"password,omitempty"`
+	Email     string         `json:"email" gorm:"uniqueIndex" validate:"required,email"`
+	Phone     string         `json:"phone,omitempty"`
+	Password  string         `json:"password,omitempty" validate:"required"`
 	Roles     []string       `json:"roles,omitempty" gorm:"type:text[]"`
 	Data      datatypes.JSON `json:"data"`
 	CreatedAt time.Time
@@ -33,8 +33,8 @@ func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type UserLogin struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 type UserLoginResponse struct {

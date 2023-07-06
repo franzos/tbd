@@ -11,8 +11,8 @@ import (
 
 type Entry struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
-	Type        string         `json:"type"`
-	Data        datatypes.JSON `json:"data"`
+	Type        string         `json:"type" validate:"required"`
+	Data        datatypes.JSON `json:"data" validate:"required"`
 	Files       []File         `json:"files" gorm:"many2many:entry_files;"`
 	CreatedByID string         `json:"created_by_id"`
 	CreatedBy   User           `json:"created_by" gorm:"foreignKey:CreatedByID"`
@@ -32,7 +32,7 @@ func (base *Entry) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type SubmitEntry struct {
-	Type  string `json:"type"`
-	Data  string `json:"data"`
-	Files []File `json:"files"`
+	Type  string         `json:"type" validate:"required"`
+	Data  datatypes.JSON `json:"data" validate:"required"`
+	Files []File         `json:"files" gorm:"many2many:entry_files;"`
 }

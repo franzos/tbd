@@ -23,9 +23,8 @@ func (h *Handler) Signup(c echo.Context) (err error) {
 		return
 	}
 
-	// Validate
-	if u.Email == "" || u.Password == "" {
-		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid email or password."}
+	if err = c.Validate(&u); err != nil {
+		return err
 	}
 
 	// Hash password
@@ -54,9 +53,8 @@ func (h *Handler) Login(c echo.Context) (err error) {
 		return
 	}
 
-	// Validate
-	if f.Email == "" || f.Password == "" {
-		return &echo.HTTPError{Code: http.StatusUnauthorized, Message: "Invalid email or password."}
+	if err = c.Validate(&f); err != nil {
+		return
 	}
 
 	u := model.User{}
@@ -154,10 +152,6 @@ func userFromToken(c echo.Context) (model.User, error) {
 	u.ID = id.String()
 	roles := strings.Split(claims.Roles, ",")
 	u.Roles = roles
-
-	// if err {
-	// 	return 0, fmt.Errorf("user ID claim not found")
-	// }
 
 	return u, nil
 }

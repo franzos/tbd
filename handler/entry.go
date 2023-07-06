@@ -33,15 +33,19 @@ func (h *Handler) CreateEntry(c echo.Context) (err error) {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
 	}
 
-	e := model.Entry{}
-	if err = c.Bind(&e); err != nil {
+	s := model.SubmitEntry{}
+	if err = c.Bind(&s); err != nil {
 		return
 	}
 
-	// Validation
-	if e.Data == nil || e.Type == "" {
-		log.Printf("Entry is incomplete.")
-		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Entry is incomplete."}
+	if err = c.Validate(&s); err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	e := model.Entry{
+		Type: s.Type,
+		Data: s.Data,
 	}
 
 	if !validateEntryType(e.Type) {
