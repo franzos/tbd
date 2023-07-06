@@ -62,6 +62,11 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to create entry."}
 	}
 
+	err := h.markFilesAsProvisioned(e.Files)
+	if err != nil {
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to mark files as provisioned."}
+	}
+
 	return c.JSON(http.StatusCreated, e)
 }
 
@@ -94,7 +99,7 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 	}
 
 	entries := []model.Entry{}
-	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
 	if err != nil {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}

@@ -81,6 +81,7 @@ func (h *Handler) CreateFiles(c echo.Context) error {
 		dbFile.Mime = file.Header.Get("Content-Type")
 		dbFile.Size = file.Size
 		dbFile.CreatedBy = u
+		dbFile.IsProvisional = true
 
 		// Upload file
 		uploader := manager.NewUploader(client)
@@ -124,4 +125,17 @@ func (h *Handler) GetFiles(c echo.Context) error {
 	return c.JSON(http.StatusOK, struct {
 		Files []model.File `json:"files"`
 	}{Files: files})
+}
+
+func (h *Handler) markFilesAsProvisioned(files []model.File) error {
+	for _, file := range files {
+		file.IsProvisional = false
+
+		err := h.DB.Model(model.Entry{ID: file.ID}).Update("is_provisional", false).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

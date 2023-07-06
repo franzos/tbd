@@ -14,10 +14,11 @@ type Entry struct {
 	Type        string         `json:"type" validate:"required"`
 	Data        datatypes.JSON `json:"data" validate:"required"`
 	Files       []File         `json:"files" gorm:"many2many:entry_files;"`
-	CreatedByID string         `json:"created_by_id"`
+	CreatedByID string         `json:"-"`
 	CreatedBy   User           `json:"created_by" gorm:"foreignKey:CreatedByID"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	ExpiresAt   time.Time
 	DeletedAt   sql.NullTime `gorm:"index"`
 }
 

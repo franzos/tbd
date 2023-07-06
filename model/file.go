@@ -8,17 +8,24 @@ import (
 	"gorm.io/gorm"
 )
 
+// File
+//
+// Notes:
+//   - IsProvisional indicates whether the file has ever been associated after uploaded
+//     Files that have not been associated after X hours will be deleted
 type File struct {
-	ID          string `json:"id" gorm:"type:uuid;primarykey"`
-	Title       string `json:"title"`
-	Path        string `json:"path"`
-	Mime        string `json:"mime"`
-	Size        int64  `json:"size"`
-	CreatedByID string `json:"created_by_id"`
-	CreatedBy   User   `json:"created_by" gorm:"foreignKey:CreatedByID"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   sql.NullTime `gorm:"index"`
+	ID            string `json:"id" gorm:"type:uuid;primarykey"`
+	Title         string `json:"title"`
+	Path          string `json:"path"`
+	Mime          string `json:"mime"`
+	Size          int64  `json:"size"`
+	CreatedByID   string `json:"created_by_id"`
+	CreatedBy     User   `json:"created_by" gorm:"foreignKey:CreatedByID"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ExpiresAt     time.Time
+	IsProvisional bool         `json:"is_provisional"`
+	DeletedAt     sql.NullTime `gorm:"index"`
 }
 
 type PublicFile struct {
