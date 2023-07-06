@@ -22,6 +22,12 @@ type User struct {
 	DeletedAt sql.NullTime `gorm:"index"`
 }
 
+type PublicUser struct {
+	ID        string         `json:"id"`
+	Data      datatypes.JSON `json:"data"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
 func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {

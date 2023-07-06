@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 
 	"tbd/model"
 )
@@ -15,15 +16,6 @@ var entryTypes = []string{
 	"apartment-short-term-rental",
 	"apartment-long-term-rental",
 	"apartment-sale",
-}
-
-func validateEntryType(t string) bool {
-	for _, v := range entryTypes {
-		if v == t {
-			return true
-		}
-	}
-	return false
 }
 
 func (h *Handler) CreateEntry(c echo.Context) error {
@@ -113,19 +105,23 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
-	return c.JSON(http.StatusOK, entries)
+	return c.JSON(http.StatusOK, modelPublicEntries(entries))
 }
 
 func (h *Handler) FetchEntry(c echo.Context) error {
 	id := c.Param("id")
 
 	var entry = model.Entry{ID: id}
-	err := h.DB.First(&entry).Error
+
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").First(&entry).Error
 	if err != nil {
-		return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
+		if err == gorm.ErrRecordNotFound {
+			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
+		}
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
 	}
 
-	return c.JSON(http.StatusOK, entry)
+	return c.JSON(http.StatusOK, modelPublicEntry(entry))
 }
 
 func (h *Handler) DeleteEntry(c echo.Context) error {

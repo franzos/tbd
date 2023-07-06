@@ -1,14 +1,11 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
 
@@ -132,26 +129,4 @@ func (h *Handler) UpdateMe(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
-}
-
-func userFromToken(c echo.Context) (model.User, error) {
-	jwtToken := c.Get("user").(*jwt.Token)
-
-	claims, err := jwtToken.Claims.(*model.JwtCustomClaims)
-	if !err {
-		return model.User{}, fmt.Errorf("invalid token claims")
-	}
-
-	// To make sure it's a valid uuid
-	id, pErr := uuid.Parse(claims.Subject)
-	if pErr != nil {
-		return model.User{}, fmt.Errorf("invalid subject; expected UUID: %v", pErr)
-	}
-
-	u := model.User{}
-	u.ID = id.String()
-	roles := strings.Split(claims.Roles, ",")
-	u.Roles = roles
-
-	return u, nil
 }

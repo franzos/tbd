@@ -21,6 +21,12 @@ type File struct {
 	DeletedAt   sql.NullTime `gorm:"index"`
 }
 
+type PublicFile struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Path  string `json:"path"`
+}
+
 func (base *File) BeforeCreate(tx *gorm.DB) (err error) {
 	if base.ID != "" {
 		return

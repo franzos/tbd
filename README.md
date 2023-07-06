@@ -67,7 +67,8 @@ air
 ## TODO
 
 - [ ] CRUD for common operations
-- [ ] Proper data validation
+- [ ] Proper data validation - WIP
+- [ ] Invalidate uploaded but never used files
 - [ ] Frontend
 - [ ] Docker image
 - [ ] Support SQLite and Postgres

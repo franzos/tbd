@@ -21,6 +21,15 @@ type Entry struct {
 	DeletedAt   sql.NullTime `gorm:"index"`
 }
 
+type PublicEntry struct {
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Data      datatypes.JSON `json:"data"`
+	Files     []PublicFile   `json:"files"`
+	CreatedBy PublicUser     `json:"created_by"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
 func (base *Entry) BeforeCreate(tx *gorm.DB) (err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
