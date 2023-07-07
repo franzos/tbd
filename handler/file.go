@@ -29,7 +29,7 @@ func fileExtentionFromFileName(fileName string) (string, error) {
 }
 
 func (h *Handler) CreateFiles(c echo.Context) error {
-	u, httpErr := userFromContext(c)
+	u, httpErr := UserFromContextHttpError(c)
 	if httpErr != nil {
 		return httpErr
 	}
@@ -127,11 +127,51 @@ func (h *Handler) GetFiles(c echo.Context) error {
 	}{Files: files})
 }
 
+func (h *Handler) DeleteFile(c echo.Context) error {
+	fileID := c.Param("id")
+
+	// Get file from DB
+	file := model.File{}
+	r := h.DB.Where("id = ?", fileID).First(&file)
+	if r.Error != nil {
+		log.Printf("Failed to get file from DB: %v", r.Error)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get file from DB"}
+	}
+
+	// Delete file from S3
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(os.Getenv("AWS_REGION")))
+	if err != nil {
+		log.Printf("error: %v", err)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to configure client."}
+	}
+
+	client := s3.NewFromConfig(cfg)
+
+	bucket := os.Getenv("AWS_BUCKET_NAME")
+	_, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(file.Path),
+	})
+	if err != nil {
+		log.Printf("Failed to delete file from S3: %v", err)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to delete file from S3"}
+	}
+
+	// Delete file from DB
+	r = h.DB.Delete(&file)
+	if r.Error != nil {
+		log.Printf("Failed to delete file from DB: %v", r.Error)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to delete file from DB"}
+	}
+
+	return c.JSON(http.StatusOK, DeleteResponse{Deleted: r.RowsAffected})
+}
+
 func (h *Handler) markFilesAsProvisioned(files []model.File) error {
 	for _, file := range files {
 		file.IsProvisional = false
 
-		err := h.DB.Model(model.Entry{ID: file.ID}).Update("is_provisional", false).Error
+		err := h.DB.Model(model.File{ID: file.ID}).Update("is_provisional", false).Error
 		if err != nil {
 			return err
 		}
