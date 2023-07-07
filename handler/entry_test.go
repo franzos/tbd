@@ -3,150 +3,49 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"tbd/model"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func postEntry(t *testing.T, token string, entryData map[string]interface{}) *http.Response {
-	entryURL := "http://localhost:1323/entries"
-	entryPayload, _ := json.Marshal(entryData)
+func performRequest(t *testing.T, method, url, token string, data interface{}) *http.Response {
+	payload, _ := json.Marshal(data)
 
-	entryReq, _ := http.NewRequest(http.MethodPost, entryURL, bytes.NewBuffer(entryPayload))
-	entryReq.Header.Set("Content-Type", "application/json")
-	entryReq.Header.Set("Authorization", "Bearer "+token)
-
-	client := http.Client{}
-	entryRec, err := client.Do(entryReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusCreated, entryRec.StatusCode)
-
-	return entryRec
-}
-
-func TestPostNewEntry(t *testing.T) {
-	token := signupAndLogin(t)
-
-	entryData := map[string]interface{}{
-		"type": "apartment-short-term-rental",
-		"data": map[string]string{
-			"title": "Some title",
-		},
-	}
-
-	postEntry(t, token, entryData)
-}
-
-func TestPostInvalidEntryType(t *testing.T) {
-	token := signupAndLogin(t)
-
-	entryData := map[string]interface{}{
-		"type": "carsale",
-		"data": map[string]string{
-			"title": "Car Sale Entry",
-		},
-	}
-
-	entryURL := "http://localhost:1323/entries"
-	entryPayload, _ := json.Marshal(entryData)
-
-	entryReq, _ := http.NewRequest(http.MethodPost, entryURL, bytes.NewBuffer(entryPayload))
-	entryReq.Header.Set("Content-Type", "application/json")
-	entryReq.Header.Set("Authorization", "Bearer "+token)
+	req, _ := http.NewRequest(method, url, bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	client := http.Client{}
-	entryRec, err := client.Do(entryReq)
+	rec, err := client.Do(req)
 	assert.NoError(t, err)
 
-	assert.Equal(t, http.StatusBadRequest, entryRec.StatusCode)
+	return rec
 }
 
-func TestPostNewEntryAndGet(t *testing.T) {
-	token := signupAndLogin(t)
+func createEntry(t *testing.T, token string, entryData map[string]interface{}) struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+} {
+	rec := performRequest(t, http.MethodPost, "http://localhost:1323/entries", token, entryData)
+	assert.Equal(t, http.StatusCreated, rec.StatusCode)
 
-	entryData := map[string]interface{}{
-		"type": "apartment-short-term-rental",
-		"data": map[string]string{
-			"title": "Some title",
-		},
+	var response struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
 	}
-
-	// Parse the upload response which is a JSON array of files
-	r := postEntry(t, token, entryData)
-	response := model.Entry{}
-	err := json.NewDecoder(r.Body).Decode(&response)
+	err := json.NewDecoder(rec.Body).Decode(&response)
 	assert.NoError(t, err)
 
-	getURL := "http://localhost:1323/entries/" + response.ID
-	getReq, _ := http.NewRequest(http.MethodGet, getURL, nil)
-
-	client := http.Client{}
-	getRec, err := client.Do(getReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusOK, getRec.StatusCode)
-
-	// Validate the response body
-	var getResponse struct {
-		ID string `json:"id"`
-	}
-	err = json.NewDecoder(getRec.Body).Decode(&getResponse)
-	assert.NoError(t, err)
-
-	// Perform additional assertions on the response body
-	assert.Equal(t, response.ID, getResponse.ID)
-
-	// Close the response body
-	getRec.Body.Close()
+	return response
 }
 
-func TestPostNewEntryAndList(t *testing.T) {
-	token := signupAndLogin(t)
-
-	entryData := map[string]interface{}{
-		"type": "apartment-short-term-rental",
-		"data": map[string]string{
-			"title": "Some title",
-		},
-	}
-
-	postEntry(t, token, entryData)
-
-	listURL := "http://localhost:1323/entries"
-	listReq, _ := http.NewRequest(http.MethodGet, listURL, nil)
-
-	client := http.Client{}
-	listRec, err := client.Do(listReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusOK, listRec.StatusCode)
-
-	// Validate the response body
-	var listResponse []struct {
-		ID string `json:"id"`
-	}
-	err = json.NewDecoder(listRec.Body).Decode(&listResponse)
-	assert.NoError(t, err)
-
-	// Perform additional assertions on the response body
-	assert.GreaterOrEqual(t, len(listResponse), 1)
-
-	// Close the response body
-	listRec.Body.Close()
-}
-
-func TestPostEntryWithFiles(t *testing.T) {
-	token := signupAndLogin(t)
-
+func uploadFiles(t *testing.T, token, filepath string) []model.File {
 	// Create a new file upload request
 	uploadURL := "http://localhost:1323/files/multi"
 	uploadReq, _ := http.NewRequest(http.MethodPost, uploadURL, nil)
@@ -157,29 +56,21 @@ func TestPostEntryWithFiles(t *testing.T) {
 	writer := multipart.NewWriter(body)
 
 	// Open the file
-	file, err := os.Open("../source_a4_vertical.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
+	file, err := os.Open(filepath)
+	assert.NoError(t, err)
 	defer file.Close()
 
 	// Create a form file field
-	part, err := writer.CreateFormFile("files", filepath.Base(file.Name()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	part, err := writer.CreateFormFile("files", file.Name())
+	assert.NoError(t, err)
 
 	// Copy the file data to the form file field
 	_, err = io.Copy(part, file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// Close the writer
 	err = writer.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// Set the content type header
 	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
@@ -203,81 +94,125 @@ func TestPostEntryWithFiles(t *testing.T) {
 	err = json.NewDecoder(uploadRec.Body).Decode(&uploadResponse)
 	assert.NoError(t, err)
 
-	// Create the entry using the uploaded file
-	entryURL := "http://localhost:1323/entries"
+	return uploadResponse.Files
+}
+
+func getEntry(t *testing.T, token string, id string) model.Entry {
+	getURL := "http://localhost:1323/entries/" + id
+	getReq, _ := http.NewRequest(http.MethodGet, getURL, nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
+
+	client := http.Client{}
+	getRec, err := client.Do(getReq)
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, getRec.StatusCode)
+
+	// Validate the response body
+	var getResponse model.Entry
+	err = json.NewDecoder(getRec.Body).Decode(&getResponse)
+	assert.NoError(t, err)
+
+	getRec.Body.Close()
+
+	return getResponse
+}
+
+func TestPostInvalidEntryType(t *testing.T) {
+	token := signupAndLogin(t)
+
+	entryData := map[string]interface{}{
+		"type": "carsale",
+		"data": map[string]string{
+			"title": "Car Sale Entry",
+		},
+	}
+
+	rec := performRequest(t, http.MethodPost, "http://localhost:1323/entries", token, entryData)
+	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
+}
+
+func TestPostNewEntryAndGet(t *testing.T) {
+	token := signupAndLogin(t)
+
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title",
+			"title": "Some title #2",
 		},
-		"files": uploadResponse.Files, // Use the uploaded file ID
 	}
-	entryPayload, _ := json.Marshal(entryData)
 
-	entryReq, _ := http.NewRequest(http.MethodPost, entryURL, bytes.NewBuffer(entryPayload))
-	entryReq.Header.Set("Content-Type", "application/json")
-	entryReq.Header.Set("Authorization", "Bearer "+token)
+	createdEntry := createEntry(t, token, entryData)
 
-	// Perform the request to create the entry
-	entryRec, err := client.Do(entryReq)
+	retrievedEntry := getEntry(t, token, createdEntry.ID)
+
+	assert.Equal(t, createdEntry.ID, retrievedEntry.ID)
+	assert.Equal(t, createdEntry.Type, retrievedEntry.Type)
+}
+
+func TestPostNewEntryAndList(t *testing.T) {
+	token := signupAndLogin(t)
+
+	entryData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]string{
+			"title": "Some title #3",
+		},
+	}
+
+	createEntry(t, token, entryData)
+
+	rec := performRequest(t, http.MethodGet, "http://localhost:1323/entries", token, nil)
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
+
+	var response []struct {
+		ID string `json:"id"`
+	}
+	err := json.NewDecoder(rec.Body).Decode(&response)
 	assert.NoError(t, err)
 
-	// Assertions for POST /entries
-	assert.Equal(t, http.StatusCreated, entryRec.StatusCode)
+	assert.GreaterOrEqual(t, len(response), 1)
+}
+
+func TestPostEntryWithFiles(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+
+	entryData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": "Some title #4",
+		},
+		"files": files, // Use the uploaded file ID
+	}
+
+	entry := createEntry(t, token, entryData)
+
+	retrievedEntry := getEntry(t, token, entry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
 func TestDeleteEntry(t *testing.T) {
 	token := signupAndLogin(t)
 
-	// Create a new entry
-	entryURL := "http://localhost:1323/entries"
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]string{
-			"title": "Some title",
+			"title": "Some title #5",
 		},
 	}
-	entryPayload, _ := json.Marshal(entryData)
 
-	entryReq, _ := http.NewRequest(http.MethodPost, entryURL, bytes.NewBuffer(entryPayload))
-	entryReq.Header.Set("Content-Type", "application/json")
-	entryReq.Header.Set("Authorization", "Bearer "+token)
+	entry := createEntry(t, token, entryData)
 
-	client := http.Client{}
-	entryRec, err := client.Do(entryReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusCreated, entryRec.StatusCode)
-
-	// Parse the entry response
-	var entryResponse struct {
-		ID string `json:"id"`
-	}
-	err = json.NewDecoder(entryRec.Body).Decode(&entryResponse)
-	assert.NoError(t, err)
-
-	// Delete the entry
-	deleteURL := fmt.Sprintf("http://localhost:1323/entries/%s", entryResponse.ID)
-	deleteReq, _ := http.NewRequest(http.MethodDelete, deleteURL, nil)
-	deleteReq.Header.Set("Authorization", "Bearer "+token)
-
-	deleteRec, err := client.Do(deleteReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusOK, deleteRec.StatusCode)
+	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/"+entry.ID, token, nil)
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
 }
 
 func TestDeleteNonexistentEntry(t *testing.T) {
 	token := signupAndLogin(t)
 
-	// Delete a nonexistent entry
-	deleteURL := "http://localhost:1323/entries/nonexistent-id"
-	deleteReq, _ := http.NewRequest(http.MethodDelete, deleteURL, nil)
-	deleteReq.Header.Set("Authorization", "Bearer "+token)
-
-	client := http.Client{}
-	deleteRec, err := client.Do(deleteReq)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.StatusNotFound, deleteRec.StatusCode)
+	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/nonexistent-id", token, nil)
+	assert.Equal(t, http.StatusNotFound, rec.StatusCode)
 }
