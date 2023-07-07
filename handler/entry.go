@@ -34,6 +34,10 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		Data: s.Data,
 	}
 
+	if s.Files != nil {
+		e.Files = s.Files
+	}
+
 	if !e.TypeIsValid() {
 		log.Printf("Type is not supported.")
 		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Type is not supported."}
@@ -55,15 +59,17 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		}
 	}
 
-	e.CreatedBy = u
+	e.CreatedByID = u.ID
 
 	r := h.DB.Create(&e)
 	if r.Error != nil {
+		log.Println(r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to create entry."}
 	}
 
 	err := h.markFilesAsProvisioned(e.Files)
 	if err != nil {
+		log.Println(r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to mark files as provisioned."}
 	}
 
@@ -80,6 +86,7 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 	// We really only allow updating the data field for now
 	r := h.DB.Model(model.Entry{ID: id}).Update("data", entry.Data)
 	if r.Error != nil {
+		log.Println(r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to update entry."}
 	}
 
@@ -101,6 +108,7 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 	entries := []model.Entry{}
 	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
 	if err != nil {
+		log.Println(err)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
