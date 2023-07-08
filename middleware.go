@@ -36,6 +36,7 @@ func (cfg AuthorizationMW) Authorize(next echo.HandlerFunc) echo.HandlerFunc {
 
 		for _, r := range res {
 			if r {
+				c.Set("user", &user)
 				return next(c)
 			}
 		}
@@ -49,6 +50,7 @@ func getJwtMVConfig() echojwt.Config {
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(model.JwtCustomClaims)
 		},
+		ContextKey: "user_auth",
 		SigningKey: []byte(os.Getenv("JWT_SECRET")),
 		Skipper: func(c echo.Context) bool {
 			/**

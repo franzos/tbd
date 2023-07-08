@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Primary user struct for DB interactions
 type User struct {
 	ID        string         `json:"id" gorm:"type:uuid;primarykey"`
 	Email     string         `json:"email" gorm:"uniqueIndex" validate:"required,email"`
@@ -22,6 +23,14 @@ type User struct {
 	DeletedAt sql.NullTime `gorm:"index"`
 }
 
+// User extracted from JWT token
+type AuthUser struct {
+	ID      string   `json:"id"`
+	Roles   []string `json:"roles"`
+	IsAdmin bool     `json:"is_admin"`
+}
+
+// User to be returned to client
 type PublicUser struct {
 	ID        string         `json:"id"`
 	Data      datatypes.JSON `json:"data"`

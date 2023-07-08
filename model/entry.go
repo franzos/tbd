@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Primary entry struct for DB interactions
 type Entry struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
 	Type        string         `json:"type" validate:"required"`
@@ -22,6 +23,7 @@ type Entry struct {
 	DeletedAt   sql.NullTime `gorm:"index"`
 }
 
+// Entry to be returned to client
 type PublicEntry struct {
 	ID        string         `json:"id"`
 	Type      string         `json:"type"`

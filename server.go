@@ -68,6 +68,11 @@ func main() {
 		panic(fmt.Sprintf("failed to create casbin enforcer: %s", err))
 	}
 
+	polErr := authEnforcer.LoadPolicy()
+	if polErr != nil {
+		panic(fmt.Sprintf("failed to load policy: %s", err))
+	}
+
 	e.Use(AuthorizationMW{Enforcer: authEnforcer}.Authorize)
 
 	// Initialize handler

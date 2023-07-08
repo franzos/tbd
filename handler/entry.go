@@ -13,11 +13,7 @@ import (
 )
 
 func (h *Handler) CreateEntry(c echo.Context) error {
-	u, httpErr := UserFromContextHttpError(c)
-	if httpErr != nil {
-		log.Printf("error: %v", httpErr)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to parse provided token."}
-	}
+	reqUser := c.Get("user").(*model.AuthUser)
 
 	s := model.SubmitEntry{}
 	if err := c.Bind(&s); err != nil {
@@ -44,6 +40,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 	}
 
 	// If entry has files, loop over them, and make sure they exist in the DB
+	// TODO: Do it with one query
 	if len(e.Files) > 0 {
 		for i, f := range e.Files {
 			if f.ID == "" {
@@ -59,7 +56,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		}
 	}
 
-	e.CreatedByID = u.ID
+	e.CreatedByID = reqUser.ID
 
 	r := h.DB.Create(&e)
 	if r.Error != nil {
@@ -76,8 +73,34 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 	return c.JSON(http.StatusCreated, e)
 }
 
+// func (h *Handler) isEntryOwnerOrAdmin(c echo.Context, entryID string) error {
+// 	reqUser := c.Get("user").(*model.AuthUser)
+
+// 	dbEntry := model.Entry{}
+// 	err := h.DB.Model(&dbEntry).Preload("CreatedBy").First(&dbEntry, "id = ?", entryID).Error
+// 	if err != nil {
+// 		if err == gorm.ErrRecordNotFound {
+// 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
+// 		}
+// 		log.Println(err)
+// 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
+// 	}
+
+// 	if reqUser.IsAdmin == false && reqUser.ID != dbEntry.CreatedByID {
+// 		return &echo.HTTPError{Code: http.StatusForbidden, Message: "You do not have permission to update this entry."}
+// 	}
+
+// 	return nil
+// }
+
 func (h *Handler) UpdateEntry(c echo.Context) error {
+	_, err := h.isOwnerOrAdmin(c, c.Param("id"), "entry")
+	if err != nil {
+		return err
+	}
+
 	id := c.Param("id")
+
 	entry := model.Entry{}
 	if err := c.Bind(&entry); err != nil {
 		return err
@@ -132,6 +155,11 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 }
 
 func (h *Handler) DeleteEntry(c echo.Context) error {
+	_, err := h.isOwnerOrAdmin(c, c.Param("id"), "entry")
+	if err != nil {
+		return err
+	}
+
 	id := c.Param("id")
 
 	r := h.DB.Delete(model.Entry{ID: id})

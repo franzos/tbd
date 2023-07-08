@@ -29,10 +29,7 @@ func fileExtentionFromFileName(fileName string) (string, error) {
 }
 
 func (h *Handler) CreateFiles(c echo.Context) error {
-	u, httpErr := UserFromContextHttpError(c)
-	if httpErr != nil {
-		return httpErr
-	}
+	reqUser := c.Get("user").(*model.AuthUser)
 
 	// Multipart form
 	form, err := c.MultipartForm()
@@ -80,7 +77,7 @@ func (h *Handler) CreateFiles(c echo.Context) error {
 		dbFile.Path = fmt.Sprintf("%s%s", "general/", newFilename)
 		dbFile.Mime = file.Header.Get("Content-Type")
 		dbFile.Size = file.Size
-		dbFile.CreatedBy = u
+		dbFile.CreatedByID = reqUser.ID
 		dbFile.IsProvisional = true
 
 		// Upload file
@@ -128,15 +125,12 @@ func (h *Handler) GetFiles(c echo.Context) error {
 }
 
 func (h *Handler) DeleteFile(c echo.Context) error {
-	fileID := c.Param("id")
-
-	// Get file from DB
-	file := model.File{}
-	r := h.DB.Where("id = ?", fileID).First(&file)
-	if r.Error != nil {
-		log.Printf("Failed to get file from DB: %v", r.Error)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get file from DB"}
+	dbFile, err := h.isOwnerOrAdmin(c, c.Param("id"), "file")
+	if err != nil {
+		return err
 	}
+
+	file := dbFile.(*model.File)
 
 	// Delete file from S3
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(os.Getenv("AWS_REGION")))
@@ -158,7 +152,9 @@ func (h *Handler) DeleteFile(c echo.Context) error {
 	}
 
 	// Delete file from DB
-	r = h.DB.Delete(&file)
+	r := h.DB.Delete(model.File{
+		ID: file.ID,
+	})
 	if r.Error != nil {
 		log.Printf("Failed to delete file from DB: %v", r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to delete file from DB"}

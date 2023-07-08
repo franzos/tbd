@@ -92,12 +92,9 @@ func (h *Handler) Login(c echo.Context) error {
 }
 
 func (h *Handler) Me(c echo.Context) error {
-	u, httpErr := UserFromContextHttpError(c)
-	if httpErr != nil {
-		// server error
-		return httpErr
-	}
+	reqUser := c.Get("user").(*model.AuthUser)
 
+	u := model.User{ID: reqUser.ID}
 	r := h.DB.First(&u)
 	if r.Error != nil {
 		if r.Error == gorm.ErrRecordNotFound {
@@ -111,11 +108,7 @@ func (h *Handler) Me(c echo.Context) error {
 }
 
 func (h *Handler) UpdateMe(c echo.Context) error {
-	u, httpErr := UserFromContextHttpError(c)
-	if httpErr != nil {
-		// server error
-		return httpErr
-	}
+	reqUser := c.Get("user").(*model.AuthUser)
 
 	nu := model.User{}
 	if err := c.Bind(&nu); err != nil {
@@ -123,7 +116,7 @@ func (h *Handler) UpdateMe(c echo.Context) error {
 	}
 
 	// We really only allow updating the data field for now
-	r := h.DB.Model(model.User{ID: u.ID}).Update("data", nu.Data)
+	r := h.DB.Model(model.User{ID: reqUser.ID}).Update("data", nu.Data)
 	if r.Error != nil {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}

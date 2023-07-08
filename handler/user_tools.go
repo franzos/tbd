@@ -11,36 +11,45 @@ import (
 )
 
 // This returns a HTTP errror if anything goes wrong; to be used directly in the handler
-func UserFromContext(c echo.Context) (model.User, error) {
-	user := c.Get("user")
+func UserFromContext(c echo.Context) (model.AuthUser, error) {
+	user := c.Get("user_auth")
 	if user == nil {
-		return model.User{}, fmt.Errorf("user not found in context")
+		return model.AuthUser{}, fmt.Errorf("user not found in context")
 	}
 	jwtToken := user.(*jwt.Token)
 
 	claims, err := jwtToken.Claims.(*model.JwtCustomClaims)
 	if !err {
-		return model.User{}, fmt.Errorf("error getting claims")
+		return model.AuthUser{}, fmt.Errorf("error getting claims")
 	}
 
 	// To make sure it's a valid uuid
 	id, pErr := uuid.Parse(claims.Subject)
 	if pErr != nil {
-		return model.User{}, fmt.Errorf("error parsing uuid")
+		return model.AuthUser{}, fmt.Errorf("error parsing uuid")
 	}
 
-	u := model.User{}
-	u.ID = id.String()
 	roles := strings.Split(claims.Roles, ",")
-	u.Roles = roles
+	isAdmin := false
+	for _, role := range roles {
+		if role == "admin" {
+			isAdmin = true
+		}
+	}
+
+	u := model.AuthUser{
+		ID:      id.String(),
+		Roles:   strings.Split(claims.Roles, ","),
+		IsAdmin: isAdmin,
+	}
 
 	return u, nil
 }
 
-func UserFromContextHttpError(c echo.Context) (model.User, *echo.HTTPError) {
+func UserFromContextHttpError(c echo.Context) (model.AuthUser, *echo.HTTPError) {
 	result, err := UserFromContext(c)
 	if err != nil {
-		return model.User{}, &echo.HTTPError{Code: 500, Message: err}
+		return model.AuthUser{}, &echo.HTTPError{Code: 500, Message: err}
 	}
 	return result, nil
 }
