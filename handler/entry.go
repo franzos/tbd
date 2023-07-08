@@ -73,7 +73,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 	}
 
 	if !e.TypeIsValid() {
-		log.Printf("Type is not supported.")
+		log.Printf(fmt.Sprintf("Type %s is not supported.", e.Type))
 		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Type is not supported."}
 	}
 
@@ -104,7 +104,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 
 	err := h.markFilesAsProvisioned(e.Files)
 	if err != nil {
-		log.Println(r.Error)
+		log.Println(err)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to mark files as provisioned."}
 	}
 

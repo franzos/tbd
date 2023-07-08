@@ -30,7 +30,7 @@ To express it in different terms, a larger community may be something like Aliba
   
 For now I'll focus on getting one community up and running, with a market place, and a few entry types.
 
-## Build and run
+## Quickstart
 
 ```bash
 # guix environment --pure --ad-hoc go gcc-toolchain
@@ -41,6 +41,31 @@ Then simply run the binary.
 
 ```bash
 ./tbd
+```
+
+### Database
+
+I currently default on SQLite for ease. 
+
+- The database is created in the current working directory, and called `tbd.db`. 
+- You can change the path using the `DB_PATH` environment variable.
+
+The project relies on a ORM, which should make it easy to support Postgres, particularly for large communities. I plan to always support SQLite and Postgres. SQLite is just too easy, for small communities.
+
+### Configuration
+
+The project relies on a `.env` file in the current working directory. You can use the `example.env` file in the repo root as a starting point.
+
+- At minimum you need to set the `JWT_SECRET`
+- To upload files, set the AWS credentials and bucket name (local storage is planned)
+
+```
+JWT_SECRET=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_BUCKET_NAME=
+AWS_REGION=
+DB_PATH=tbd.db
 ```
 
 ## Development
@@ -68,13 +93,14 @@ air
 
 - [ ] CRUD for common operations
 - [ ] Proper data validation - WIP
-- [ ] Invalidate uploaded but never used files
+- [ ] Invalidate uploaded but never used files - WIP
 - [ ] Frontend
 - [ ] Docker image
 - [ ] Support SQLite and Postgres
 - [ ] Social login (Google, Facebook, Twitter, etc.)
 - [ ] API docs
 - [ ] Support for multiple communities
+- [ ] Support files on local storage
 
 ## Tests
 
@@ -83,4 +109,10 @@ Note: The tests are generated using GPT with minor adjustments.
 ```
 go test -v ./...
 go test -v ./... -count=1
+```
+
+Run individual tests:
+
+```
+go test -v ./... -count=1 -run=TestPostEntryWithFilesAndUpdate
 ```

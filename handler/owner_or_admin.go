@@ -64,7 +64,6 @@ func isSelfOrAdmin(c echo.Context, userID string) error {
 
 	if reqUser.IsAdmin == false && reqUser.ID != userID {
 		log.Println("User is not admin and is not owner of object.")
-		// log.Println("Object ID:", dbObject.CreatedByID)
 		return &echo.HTTPError{Code: http.StatusForbidden, Message: "You do not have permission to update this user."}
 	}
 
