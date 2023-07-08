@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,64 @@ import (
 
 	"tbd/model"
 )
+
+func (h *Handler) FetchUsers(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	// Defaults
+	if page == 0 {
+		page = 1
+	}
+	if limit == 0 {
+		limit = 100
+	}
+
+	users := []model.User{}
+
+	r := h.DB.Model(&model.User{}).Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&users)
+	if r.Error != nil {
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch users."}
+	}
+
+	return c.JSON(http.StatusOK, responseArrFormatter[model.User](users, nil))
+}
+
+func (h *Handler) FetchUser(c echo.Context) error {
+	id := c.Param("id")
+
+	var user = model.User{ID: id}
+
+	r := h.DB.First(&user)
+	if r.Error != nil {
+		if r.Error == gorm.ErrRecordNotFound {
+			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found."}
+		}
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch user."}
+	}
+
+	return c.JSON(http.StatusOK, responseFormatter[model.User](user, nil))
+}
+
+func (h *Handler) DeleteUser(c echo.Context) error {
+	err := isSelfOrAdmin(c, c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	id := c.Param("id")
+
+	var user = model.User{ID: id}
+
+	r := h.DB.Delete(&user)
+	if r.Error != nil {
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to delete user."}
+	}
+
+	// TODO: Delete user's entries, files, etc.
+
+	return c.NoContent(http.StatusOK)
+}
 
 func (h *Handler) Signup(c echo.Context) error {
 	u := model.User{}

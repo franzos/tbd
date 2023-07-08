@@ -83,14 +83,20 @@ func main() {
 	e.POST("/signup", h.Signup)
 	e.POST("/login", h.Login)
 
+	e.GET("/users", h.FetchUsers)
+	e.GET("/users/:id", h.FetchUser)
+	e.DELETE("/users/:id", h.DeleteUser)
+
 	e.POST("/entries", h.CreateEntry)
 	e.GET("/entries", h.FetchEntries)
 	e.GET("/entries/:id", h.FetchEntry)
 	e.PATCH("/entries/:id", h.UpdateEntry)
 	e.DELETE("/entries/:id", h.DeleteEntry)
 
+	e.GET("/files", h.FetchFiles)
 	e.POST("/files/multi", h.CreateFiles)
 	e.DELETE("/files/:id", h.DeleteFile)
+	e.GET("/files/:id/download", h.DownloadFile)
 
 	e.GET("/account/me", h.Me)
 	e.PATCH("/account/me", h.UpdateMe)

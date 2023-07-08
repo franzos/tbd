@@ -61,7 +61,7 @@ type JwtCustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (user User) ToPublicFormat() PublicUser {
+func (user User) ToPublicFormat() interface{} {
 	return PublicUser{
 		ID:        user.ID,
 		Data:      user.Data,

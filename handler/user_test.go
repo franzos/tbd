@@ -173,3 +173,66 @@ func TestAccountMe(t *testing.T) {
 	// Assertions for requesting user profile
 	assert.Equal(t, http.StatusOK, accountRec.StatusCode)
 }
+
+func TestUserDeleteSelf(t *testing.T) {
+	token := signupAndLogin(t)
+
+	// Use the token to request the user's own profile
+	accountURL := "http://localhost:1323/account/me"
+	accountReq, _ := http.NewRequest(http.MethodGet, accountURL, nil)
+	accountReq.Header.Set("Authorization", "Bearer "+token)
+
+	client := http.Client{}
+	accountRec, err := client.Do(accountReq)
+	assert.NoError(t, err)
+
+	// Parse the response to get the user ID
+	var user struct {
+		ID string `json:"id"`
+	}
+	err = json.NewDecoder(accountRec.Body).Decode(&user)
+	assert.NoError(t, err)
+
+	// Use the token to delete the user's own profile
+	deleteURL := "http://localhost:1323/users/" + user.ID
+	deleteReq, _ := http.NewRequest(http.MethodDelete, deleteURL, nil)
+	deleteReq.Header.Set("Authorization", "Bearer "+token)
+
+	deleteRec, err := client.Do(deleteReq)
+	assert.NoError(t, err)
+
+	// Assertions for deleting user profile
+	assert.Equal(t, http.StatusOK, deleteRec.StatusCode)
+}
+
+func TestUserDeleteAnother(t *testing.T) {
+	token1 := signupAndLogin(t)
+	token2 := signupAndLogin(t) // create another user
+
+	// Get the second user's ID
+	accountURL := "http://localhost:1323/account/me"
+	accountReq, _ := http.NewRequest(http.MethodGet, accountURL, nil)
+	accountReq.Header.Set("Authorization", "Bearer "+token2)
+
+	client := http.Client{}
+	accountRec, err := client.Do(accountReq)
+	assert.NoError(t, err)
+
+	// Parse the response to get the user ID
+	var user struct {
+		ID string `json:"id"`
+	}
+	err = json.NewDecoder(accountRec.Body).Decode(&user)
+	assert.NoError(t, err)
+
+	// Use the first user's token to attempt to delete the second user's profile
+	deleteURL := "http://localhost:1323/users/" + user.ID
+	deleteReq, _ := http.NewRequest(http.MethodDelete, deleteURL, nil)
+	deleteReq.Header.Set("Authorization", "Bearer "+token1)
+
+	deleteRec, err := client.Do(deleteReq)
+	assert.NoError(t, err)
+
+	// Assertions for attempting to delete another user's profile
+	assert.Equal(t, http.StatusForbidden, deleteRec.StatusCode)
+}

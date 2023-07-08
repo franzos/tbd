@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"tbd/model"
@@ -51,10 +52,21 @@ func (h *Handler) isOwnerOrAdmin(c echo.Context, objectID string, objectType str
 	}
 
 	if reqUser.IsAdmin == false && reqUser.ID != createdByID {
-		log.Println("User is not admin and is not owner of object.")
-		// log.Println("Object ID:", dbObject.CreatedByID)
+		log.Println(fmt.Sprintf("User is not admin and is not owner of object %v.", objectID))
 		return nil, &echo.HTTPError{Code: http.StatusForbidden, Message: errMsgs["noPermission"]}
 	}
 
 	return dbObject, nil
+}
+
+func isSelfOrAdmin(c echo.Context, userID string) error {
+	reqUser := c.Get("user").(*model.AuthUser)
+
+	if reqUser.IsAdmin == false && reqUser.ID != userID {
+		log.Println("User is not admin and is not owner of object.")
+		// log.Println("Object ID:", dbObject.CreatedByID)
+		return &echo.HTTPError{Code: http.StatusForbidden, Message: "You do not have permission to update this user."}
+	}
+
+	return nil
 }

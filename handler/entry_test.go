@@ -45,7 +45,7 @@ func createEntry(t *testing.T, token string, entryData map[string]interface{}) s
 func updateEntry(t *testing.T, token string, entryID string, entryData map[string]interface{}) {
 	entryURL := fmt.Sprintf("http://localhost:1323/entries/%s", entryID)
 
-	rec := performRequest(t, http.MethodPut, entryURL, token, entryData)
+	rec := performRequest(t, http.MethodPatch, entryURL, token, entryData)
 
 	if rec.StatusCode != http.StatusOK {
 		t.Fatalf("Expected status OK, got: %v", rec.StatusCode)
@@ -260,7 +260,7 @@ func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
 	}
 
 	// Capture the response and check the status code
-	resp := performRequest(t, http.MethodPut, "http://localhost:1323/entries/"+entry.ID, anotherUserToken, updateData)
+	resp := performRequest(t, http.MethodPatch, "http://localhost:1323/entries/"+entry.ID, anotherUserToken, updateData)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 

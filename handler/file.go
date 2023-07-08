@@ -28,6 +28,19 @@ func fileExtentionFromFileName(fileName string) (string, error) {
 	return "", fmt.Errorf("no extention found")
 }
 
+func (h *Handler) FetchFiles(c echo.Context) error {
+	files := []model.File{}
+	r := h.DB.Find(&files)
+	if r.Error != nil {
+		log.Printf("Failed to get files from DB: %v", r.Error)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get files from DB"}
+	}
+
+	return c.JSON(http.StatusOK, struct {
+		Files []model.File `json:"files"`
+	}{Files: files})
+}
+
 func (h *Handler) CreateFiles(c echo.Context) error {
 	reqUser := c.Get("user").(*model.AuthUser)
 
@@ -102,26 +115,13 @@ func (h *Handler) CreateFiles(c echo.Context) error {
 			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to save file to DB"}
 		}
 
-		fmt.Sprintln("File uploaded to", result.Location)
+		log.Println(fmt.Sprintf("File uploaded to %s", result.Location))
 		dbFiles = append(dbFiles, dbFile)
 	}
 
 	return c.JSON(http.StatusCreated, struct {
 		Files []model.File `json:"files"`
 	}{Files: dbFiles})
-}
-
-func (h *Handler) GetFiles(c echo.Context) error {
-	files := []model.File{}
-	r := h.DB.Find(&files)
-	if r.Error != nil {
-		log.Printf("Failed to get files from DB: %v", r.Error)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get files from DB"}
-	}
-
-	return c.JSON(http.StatusOK, struct {
-		Files []model.File `json:"files"`
-	}{Files: files})
 }
 
 func (h *Handler) DeleteFile(c echo.Context) error {
@@ -161,6 +161,46 @@ func (h *Handler) DeleteFile(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, DeleteResponse{Deleted: r.RowsAffected})
+}
+
+func (h *Handler) DownloadFile(c echo.Context) error {
+	id := c.Param("id")
+
+	file := model.File{}
+	r := h.DB.First(&file, "id = ?", id)
+	if r.Error != nil {
+		log.Printf("Failed to get file from DB: %v", r.Error)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get file from DB"}
+	}
+
+	// Create S3 client
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(os.Getenv("AWS_REGION")))
+	if err != nil {
+		log.Printf("error: %v", err)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to configure download client."}
+	}
+
+	client := s3.NewFromConfig(cfg)
+
+	// Get object
+	output, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(os.Getenv("AWS_BUCKET_NAME")),
+		Key:    aws.String(file.Path),
+	})
+	if err != nil {
+		log.Printf("Failed to download file: %v", err)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to download file."}
+	}
+
+	// Get the content type
+	contentType := *output.ContentType
+
+	// Set the headers you want on the response.
+	c.Response().Header().Set(echo.HeaderContentType, contentType)
+	c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+file.ID)
+
+	// Use Stream to provide your response body
+	return c.Stream(http.StatusOK, contentType, output.Body)
 }
 
 func (h *Handler) markFilesAsProvisioned(files []model.File) error {

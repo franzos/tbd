@@ -3,8 +3,11 @@ p, anonymous, /signup, write
 p, anonymous, /login, write
 p, anonymous, /entries, read
 p, anonymous, /entries/:id, read
+p, member, /users, read
+p, member, /users/:id, write
 p, member, /entries, write
 p, member, /entries/:id, write
+p, member, /files, read
 p, member, /files/multi, write
 p, member, /files/:id, write
 p, member, /account/me, read

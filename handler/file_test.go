@@ -66,6 +66,16 @@ func uploadFiles(t *testing.T, token, filepath string) []model.File {
 	return uploadResponse.Files
 }
 
+func downloadFile(t *testing.T, method, url, token string) {
+	req, _ := http.NewRequest(method, url, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := http.Client{}
+	rec, err := client.Do(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
+}
+
 func TestPostNewFiles(t *testing.T) {
 	token := signupAndLogin(t)
 
@@ -82,6 +92,9 @@ func TestFileLifecycle(t *testing.T) {
 
 	// For the sake of this example, we will operate on the first file
 	file := files[0]
+
+	// Download the file
+	downloadFile(t, http.MethodGet, "http://localhost:1323/files/"+file.ID+"/download", token)
 
 	// Delete the file
 	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/files/"+file.ID, token, nil)

@@ -12,6 +12,44 @@ import (
 	"tbd/model"
 )
 
+func (h *Handler) FetchEntries(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	// Defaults
+	if page == 0 {
+		page = 1
+	}
+	if limit == 0 {
+		limit = 100
+	}
+
+	entries := []model.Entry{}
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
+	if err != nil {
+		log.Println(err)
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
+	}
+
+	return c.JSON(http.StatusOK, responseArrFormatter[model.Entry](entries, nil))
+}
+
+func (h *Handler) FetchEntry(c echo.Context) error {
+	id := c.Param("id")
+
+	var entry = model.Entry{ID: id}
+
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").First(&entry).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
+		}
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
+	}
+
+	return c.JSON(http.StatusOK, responseFormatter[model.Entry](entry, nil))
+}
+
 func (h *Handler) CreateEntry(c echo.Context) error {
 	reqUser := c.Get("user").(*model.AuthUser)
 
@@ -21,7 +59,7 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 	}
 
 	if err := c.Validate(&s); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return err
 	}
 
@@ -73,26 +111,6 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 	return c.JSON(http.StatusCreated, e)
 }
 
-// func (h *Handler) isEntryOwnerOrAdmin(c echo.Context, entryID string) error {
-// 	reqUser := c.Get("user").(*model.AuthUser)
-
-// 	dbEntry := model.Entry{}
-// 	err := h.DB.Model(&dbEntry).Preload("CreatedBy").First(&dbEntry, "id = ?", entryID).Error
-// 	if err != nil {
-// 		if err == gorm.ErrRecordNotFound {
-// 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
-// 		}
-// 		log.Println(err)
-// 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
-// 	}
-
-// 	if reqUser.IsAdmin == false && reqUser.ID != dbEntry.CreatedByID {
-// 		return &echo.HTTPError{Code: http.StatusForbidden, Message: "You do not have permission to update this entry."}
-// 	}
-
-// 	return nil
-// }
-
 func (h *Handler) UpdateEntry(c echo.Context) error {
 	_, err := h.isOwnerOrAdmin(c, c.Param("id"), "entry")
 	if err != nil {
@@ -114,44 +132,6 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
-}
-
-func (h *Handler) FetchEntries(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-
-	// Defaults
-	if page == 0 {
-		page = 1
-	}
-	if limit == 0 {
-		limit = 100
-	}
-
-	entries := []model.Entry{}
-	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
-	if err != nil {
-		log.Println(err)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
-	}
-
-	return c.JSON(http.StatusOK, responseArrFormatter[model.Entry](entries, nil))
-}
-
-func (h *Handler) FetchEntry(c echo.Context) error {
-	id := c.Param("id")
-
-	var entry = model.Entry{ID: id}
-
-	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").First(&entry).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
-		}
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
-	}
-
-	return c.JSON(http.StatusOK, responseFormatter[model.Entry](entry, nil))
 }
 
 func (h *Handler) DeleteEntry(c echo.Context) error {

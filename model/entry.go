@@ -77,7 +77,7 @@ func (e Entry) ToPublicFormat() interface{} {
 	}
 
 	if e.CreatedBy != nil {
-		pe.CreatedBy = e.CreatedBy.ToPublicFormat()
+		pe.CreatedBy = e.CreatedBy.ToPublicFormat().(PublicUser)
 	}
 
 	pe.CreatedAt = e.CreatedAt
