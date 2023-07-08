@@ -87,3 +87,24 @@ func TestFileLifecycle(t *testing.T) {
 	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/files/"+file.ID, token, nil)
 	assert.Equal(t, http.StatusOK, rec.StatusCode)
 }
+
+func TestFileLifecycleWithUnauthorizedUser(t *testing.T) {
+	// Sign up and login as the first user
+	token := signupAndLogin(t)
+
+	// Upload new files
+	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+	assert.GreaterOrEqual(t, len(files), 1)
+
+	// For the sake of this example, we will operate on the first file
+	file := files[0]
+
+	// Sign up and login as a second user
+	newUserToken := signupAndLogin(t)
+
+	// Attempt to delete the file with the new user's token
+	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/files/"+file.ID, newUserToken, nil)
+
+	// Expect the server to return a 403 Forbidden status code
+	assert.Equal(t, http.StatusForbidden, rec.StatusCode)
+}

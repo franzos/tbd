@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"tbd/model"
 	"testing"
@@ -39,6 +40,16 @@ func createEntry(t *testing.T, token string, entryData map[string]interface{}) s
 	assert.NoError(t, err)
 
 	return response
+}
+
+func updateEntry(t *testing.T, token string, entryID string, entryData map[string]interface{}) {
+	entryURL := fmt.Sprintf("http://localhost:1323/entries/%s", entryID)
+
+	rec := performRequest(t, http.MethodPut, entryURL, token, entryData)
+
+	if rec.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status OK, got: %v", rec.StatusCode)
+	}
 }
 
 func getEntry(t *testing.T, token string, id string) model.Entry {
@@ -138,6 +149,121 @@ func TestPostEntryWithFiles(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
+func TestPostEntryWithFilesAndUpdate(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+
+	entryData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": "Some title #4",
+		},
+		"files": files, // Use the uploaded file ID
+	}
+
+	entry := createEntry(t, token, entryData)
+
+	retrievedEntry := getEntry(t, token, entry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
+
+	// Update the entry title
+	newTitle := "Some updated title"
+	updateData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": newTitle,
+		},
+		"files": files, // Use the uploaded file ID
+	}
+
+	updateEntry(t, token, entry.ID, updateData)
+
+	// Get the entry from the API again
+	updatedEntry := getEntry(t, token, entry.ID)
+
+	dataMap := make(map[string]interface{})
+	err := json.Unmarshal(updatedEntry.Data, &dataMap)
+	if err != nil {
+		t.Fatalf("Error unmarshaling JSON: %v", err)
+	}
+
+	title, ok := dataMap["title"].(string)
+	if !ok {
+		t.Fatalf("Title not found or not a string")
+	}
+
+	// Now you can use the `title` in your assert
+	assert.Equal(t, newTitle, title)
+}
+
+func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+
+	entryData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": "Some title #4",
+		},
+		"files": files, // Use the uploaded file ID
+	}
+
+	entry := createEntry(t, token, entryData)
+
+	retrievedEntry := getEntry(t, token, entry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
+
+	// Update the entry title
+	newTitle := "Some updated title"
+	updateData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": newTitle,
+		},
+		"files": files, // Use the uploaded file ID
+	}
+
+	updateEntry(t, token, entry.ID, updateData)
+
+	// Get the entry from the API again
+	updatedEntry := getEntry(t, token, entry.ID)
+
+	dataMap := make(map[string]interface{})
+	err := json.Unmarshal(updatedEntry.Data, &dataMap)
+	if err != nil {
+		t.Fatalf("Error unmarshaling JSON: %v", err)
+	}
+
+	title, ok := dataMap["title"].(string)
+	if !ok {
+		t.Fatalf("Title not found or not a string")
+	}
+
+	// Now you can use the `title` in your assert
+	assert.Equal(t, newTitle, title)
+
+	// Add another user
+	anotherUserToken := signupAndLogin(t)
+
+	// Try to update the entry with another user
+	newTitle = "This should not work"
+	updateData = map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]interface{}{
+			"title": newTitle,
+		},
+		"files": files,
+	}
+
+	// Capture the response and check the status code
+	resp := performRequest(t, http.MethodPut, "http://localhost:1323/entries/"+entry.ID, anotherUserToken, updateData)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
 func TestPostEntryWithFilesAndDelete(t *testing.T) {
 	token := signupAndLogin(t)
 
@@ -179,6 +305,30 @@ func TestDeleteEntry(t *testing.T) {
 
 	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/"+entry.ID, token, nil)
 	assert.Equal(t, http.StatusOK, rec.StatusCode)
+}
+
+func TestDeleteEntryWithUnauthorizedUser(t *testing.T) {
+	// Sign up and login as the first user
+	token := signupAndLogin(t)
+
+	// Create an entry
+	entryData := map[string]interface{}{
+		"type": "apartment-short-term-rental",
+		"data": map[string]string{
+			"title": "Some title #5",
+		},
+	}
+
+	entry := createEntry(t, token, entryData)
+
+	// Sign up and login as a second user
+	newUserToken := signupAndLogin(t)
+
+	// Try to delete the entry with the new user's token
+	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/"+entry.ID, newUserToken, nil)
+
+	// Expect the server to return a 403 Forbidden status code
+	assert.Equal(t, http.StatusForbidden, rec.StatusCode)
 }
 
 func TestDeleteNonexistentEntry(t *testing.T) {
