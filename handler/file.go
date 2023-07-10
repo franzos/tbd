@@ -165,12 +165,16 @@ func (h *Handler) DeleteFile(c echo.Context) error {
 
 func (h *Handler) DownloadFile(c echo.Context) error {
 	id := c.Param("id")
+	filePath := c.QueryParam("path")
 
-	file := model.File{}
-	r := h.DB.First(&file, "id = ?", id)
-	if r.Error != nil {
-		log.Printf("Failed to get file from DB: %v", r.Error)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get file from DB"}
+	if filePath == "" {
+		file := model.File{}
+		r := h.DB.First(&file, "id = ?", id)
+		if r.Error != nil {
+			log.Printf("Failed to get file from DB: %v", r.Error)
+			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to get file from DB"}
+		}
+		filePath = file.Path
 	}
 
 	// Create S3 client
@@ -185,7 +189,7 @@ func (h *Handler) DownloadFile(c echo.Context) error {
 	// Get object
 	output, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(os.Getenv("AWS_BUCKET_NAME")),
-		Key:    aws.String(file.Path),
+		Key:    aws.String(filePath),
 	})
 	if err != nil {
 		log.Printf("Failed to download file: %v", err)
@@ -197,7 +201,7 @@ func (h *Handler) DownloadFile(c echo.Context) error {
 
 	// Set the headers you want on the response.
 	c.Response().Header().Set(echo.HeaderContentType, contentType)
-	c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+file.ID)
+	c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+id)
 
 	// Use Stream to provide your response body
 	return c.Stream(http.StatusOK, contentType, output.Body)
