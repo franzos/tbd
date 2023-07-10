@@ -13,25 +13,32 @@ import (
 )
 
 func (h *Handler) FetchEntries(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
 	// Defaults
-	if page == 0 {
-		page = 1
+	if offset == 0 {
+		offset = 1
 	}
 	if limit == 0 {
 		limit = 100
 	}
 
+	count := int64(0)
 	entries := []model.Entry{}
-	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&entries).Error
-	if err != nil {
-		log.Println(err)
+	r := h.DB.Model(&model.Entry{}).
+		Preload("CreatedBy").Preload("Files").
+		Order("created_at desc").
+		Count(&count).
+		Offset((offset - 1) * limit).
+		Limit(limit).
+		Find(&entries)
+	if r.Error != nil {
+		log.Println(r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
-	return c.JSON(http.StatusOK, responseArrFormatter[model.Entry](entries, nil))
+	return c.JSON(http.StatusOK, ListResponse{Total: int64(count), Items: responseArrFormatter[model.Entry](entries, nil)})
 }
 
 func (h *Handler) FetchEntry(c echo.Context) error {
@@ -124,14 +131,31 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 		return err
 	}
 
-	// We really only allow updating the data field for now
-	r := h.DB.Model(model.Entry{ID: id}).Update("data", entry.Data)
-	if r.Error != nil {
-		log.Println(r.Error)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to update entry."}
+	updateData := make(map[string]interface{})
+	if len(entry.Data) > 0 {
+		updateData["data"] = entry.Data
 	}
 
-	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
+	if len(updateData) > 0 {
+		r := h.DB.Model(&model.Entry{ID: id}).Updates(updateData)
+		if r.Error != nil {
+			log.Println(r.Error)
+			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to update entry."}
+		}
+	}
+
+	if len(entry.Files) > 0 {
+		currentEntry := model.Entry{}
+		result := h.DB.Preload("Files").First(&currentEntry, "id = ?", id)
+		if result.Error != nil {
+			log.Println(result.Error)
+			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
+		}
+
+		h.DB.Model(&currentEntry).Association("Files").Replace(&entry.Files)
+	}
+
+	return c.JSON(http.StatusOK, UpdateResponse{Updated: 1}) // Assume 1 row affected since the entry exists and you're here.
 }
 
 func (h *Handler) DeleteEntry(c echo.Context) error {

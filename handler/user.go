@@ -17,25 +17,30 @@ import (
 )
 
 func (h *Handler) FetchUsers(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
+	offset, _ := strconv.Atoi(c.QueryParam("page"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
 	// Defaults
-	if page == 0 {
-		page = 1
+	if offset == 0 {
+		offset = 1
 	}
 	if limit == 0 {
 		limit = 100
 	}
 
+	count := int64(0)
 	users := []model.User{}
-
-	r := h.DB.Model(&model.User{}).Order("created_at desc").Offset((page - 1) * limit).Limit(limit).Find(&users)
+	r := h.DB.Model(&model.User{}).
+		Order("created_at desc").
+		Count(&count).
+		Offset((offset - 1) * limit).
+		Limit(limit).
+		Find(&users)
 	if r.Error != nil {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch users."}
 	}
 
-	return c.JSON(http.StatusOK, responseArrFormatter[model.User](users, nil))
+	return c.JSON(http.StatusOK, ListResponse{Total: int64(count), Items: responseArrFormatter[model.User](users, nil)})
 }
 
 func (h *Handler) FetchUser(c echo.Context) error {

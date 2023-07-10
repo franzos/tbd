@@ -8,6 +8,7 @@ import (
 	"tbd/model"
 	"testing"
 
+	"github.com/jaswdr/faker"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,10 +77,12 @@ func getEntry(t *testing.T, token string, id string) model.Entry {
 func TestPostInvalidEntryType(t *testing.T) {
 	token := signupAndLogin(t)
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "carsale",
 		"data": map[string]string{
-			"title": "Car Sale Entry",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 	}
 
@@ -90,10 +93,12 @@ func TestPostInvalidEntryType(t *testing.T) {
 func TestPostNewEntryAndGet(t *testing.T) {
 	token := signupAndLogin(t)
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title #2",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 	}
 
@@ -108,10 +113,12 @@ func TestPostNewEntryAndGet(t *testing.T) {
 func TestPostNewEntryAndList(t *testing.T) {
 	token := signupAndLogin(t)
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]string{
-			"title": "Some title #3",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 	}
 
@@ -120,24 +127,27 @@ func TestPostNewEntryAndList(t *testing.T) {
 	rec := performRequest(t, http.MethodGet, "http://localhost:1323/entries", token, nil)
 	assert.Equal(t, http.StatusOK, rec.StatusCode)
 
-	var response []struct {
-		ID string `json:"id"`
+	var response = ListResponse{
+		Items: []model.PublicEntry{},
+		Total: 0,
 	}
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	assert.NoError(t, err)
 
-	assert.GreaterOrEqual(t, len(response), 1)
+	assert.GreaterOrEqual(t, int(response.Total), 1)
 }
 
 func TestPostEntryWithFiles(t *testing.T) {
 	token := signupAndLogin(t)
 
-	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+	files := uploadFiles(t, token, "../concorde.jpg")
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title #4",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -152,12 +162,14 @@ func TestPostEntryWithFiles(t *testing.T) {
 func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 	token := signupAndLogin(t)
 
-	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+	files := uploadFiles(t, token, "../concorde.jpg")
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title #4",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -169,11 +181,12 @@ func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 
 	// Update the entry title
-	newTitle := "Some updated title"
+	newTitle := fake.Lorem().Text(40)
 	updateData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": newTitle,
+			"title":       newTitle,
+			"description": entryData["data"].(map[string]interface{})["description"],
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -201,12 +214,14 @@ func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
 	token := signupAndLogin(t)
 
-	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+	files := uploadFiles(t, token, "../concorde.jpg")
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title #4",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -222,7 +237,8 @@ func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
 	updateData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": newTitle,
+			"title":       newTitle,
+			"description": entryData["data"].(map[string]interface{})["description"],
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -267,12 +283,14 @@ func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
 func TestPostEntryWithFilesAndDelete(t *testing.T) {
 	token := signupAndLogin(t)
 
+	fake := faker.New()
 	// Upload files and create an entry with those files
-	files := uploadFiles(t, token, "../source_a4_vertical.pdf")
+	files := uploadFiles(t, token, "../concorde.jpg")
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]interface{}{
-			"title": "Some title #4",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 		"files": files, // Use the uploaded file ID
 	}
@@ -294,10 +312,12 @@ func TestPostEntryWithFilesAndDelete(t *testing.T) {
 func TestDeleteEntry(t *testing.T) {
 	token := signupAndLogin(t)
 
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]string{
-			"title": "Some title #5",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 	}
 
@@ -312,10 +332,12 @@ func TestDeleteEntryWithUnauthorizedUser(t *testing.T) {
 	token := signupAndLogin(t)
 
 	// Create an entry
+	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": "apartment-short-term-rental",
 		"data": map[string]string{
-			"title": "Some title #5",
+			"title":       fake.Lorem().Text(40),
+			"description": fake.Lorem().Text(200),
 		},
 	}
 

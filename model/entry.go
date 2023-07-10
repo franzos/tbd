@@ -9,6 +9,14 @@ import (
 	"gorm.io/gorm"
 )
 
+var entryTypes = []string{
+	// > 3 months
+	"apartment-short-term-rental",
+	// < 3 months
+	"apartment-long-term-rental",
+	"apartment-sale",
+}
+
 // Primary entry struct for DB interactions
 type Entry struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
@@ -47,14 +55,6 @@ type SubmitEntry struct {
 	Type  string         `json:"type" validate:"required"`
 	Data  datatypes.JSON `json:"data" validate:"required"`
 	Files []File         `json:"files" gorm:"many2many:entry_files;"`
-}
-
-var entryTypes = []string{
-	// > 3 months
-	"apartment-short-term-rental",
-	// < 3 months
-	"apartment-long-term-rental",
-	"apartment-sale",
 }
 
 func (e Entry) TypeIsValid() bool {

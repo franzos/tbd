@@ -17,7 +17,9 @@ type User struct {
 	Phone     string         `json:"phone,omitempty"`
 	Password  string         `json:"password,omitempty" validate:"required"`
 	Roles     []string       `json:"roles" gorm:"serializer:json;default:'[]'"`
+	Profile   UserProfile    `json:"profile" gorm:"serializer:json"`
 	Data      datatypes.JSON `json:"data"`
+	IsListed  bool           `json:"is_listed" gorm:"default:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt sql.NullTime `gorm:"index"`
@@ -32,9 +34,9 @@ type AuthUser struct {
 
 // User to be returned to client
 type PublicUser struct {
-	ID        string         `json:"id"`
-	Data      datatypes.JSON `json:"data"`
-	CreatedAt time.Time      `json:"created_at"`
+	ID        string      `json:"id"`
+	Profile   UserProfile `json:"profile"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
@@ -64,7 +66,7 @@ type JwtCustomClaims struct {
 func (user User) ToPublicFormat() interface{} {
 	return PublicUser{
 		ID:        user.ID,
-		Data:      user.Data,
+		Profile:   user.Profile,
 		CreatedAt: user.CreatedAt,
 	}
 }
