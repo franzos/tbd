@@ -7,3 +7,8 @@ type UpdateResponse struct {
 type DeleteResponse struct {
 	Deleted int64 `json:"deleted"`
 }
+
+type ListResponse struct {
+	Total int64       `json:"total"`
+	Items interface{} `json:"items"`
+}

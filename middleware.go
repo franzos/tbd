@@ -45,6 +45,34 @@ func (cfg AuthorizationMW) Authorize(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+type PublicPaths struct {
+	Path   string
+	Method string
+}
+
+var publicPaths = []PublicPaths{
+	{
+		Path:   "/login",
+		Method: "POST",
+	},
+	{
+		Path:   "/signup",
+		Method: "POST",
+	},
+	{
+		Path:   "/entries",
+		Method: "GET",
+	},
+	{
+		Path:   "/entries/:id",
+		Method: "GET",
+	},
+	{
+		Path:   "/files/:id/download",
+		Method: "GET",
+	},
+}
+
 func getJwtMVConfig() echojwt.Config {
 	return echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
@@ -53,17 +81,10 @@ func getJwtMVConfig() echojwt.Config {
 		ContextKey: "user_auth",
 		SigningKey: []byte(os.Getenv("JWT_SECRET")),
 		Skipper: func(c echo.Context) bool {
-			/**
-			Skip authentication for signup and login requests, as well as listing entries
-			- login
-			- signup
-			- entries (list)
-			- entries/:id (get)
-			*/
-			isEntriesList := c.Path() == "/entries" && c.Request().Method == "GET"
-			isEntriesGet := c.Path() == "/entries/:id" && c.Request().Method == "GET"
-			if c.Path() == "/login" || c.Path() == "/signup" || isEntriesList || isEntriesGet {
-				return true
+			for _, p := range publicPaths {
+				if c.Path() == p.Path && c.Request().Method == p.Method {
+					return true
+				}
 			}
 			return false
 		},
