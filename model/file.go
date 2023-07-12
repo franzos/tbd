@@ -49,7 +49,7 @@ func (base *File) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-func (f File) ToPublicFormat() interface{} {
+func (f File) ToPublicFormat(domain string) interface{} {
 	return PublicFile{
 		ID:    f.ID,
 		Title: f.Title,

@@ -33,12 +33,14 @@ type Entry struct {
 
 // Entry to be returned to client
 type PublicEntry struct {
-	ID        string         `json:"id"`
-	Type      string         `json:"type"`
-	Data      datatypes.JSON `json:"data"`
-	Files     []PublicFile   `json:"files,omitempty"`
-	CreatedBy PublicUser     `json:"created_by,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
+	ID              string         `json:"id"`
+	IDWithLocalPart string         `json:"id_with_local_part"`
+	Type            string         `json:"type"`
+	Data            datatypes.JSON `json:"data"`
+	Files           []PublicFile   `json:"files,omitempty"`
+	CreatedBy       PublicUser     `json:"created_by,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 func (base *Entry) BeforeCreate(tx *gorm.DB) (err error) {
@@ -66,9 +68,10 @@ func (e Entry) TypeIsValid() bool {
 	return false
 }
 
-func (e Entry) ToPublicFormat() interface{} {
+func (e Entry) ToPublicFormat(domain string) interface{} {
 	pe := PublicEntry{}
 	pe.ID = e.ID
+	pe.IDWithLocalPart = EntryWithLocalPart(e.ID, domain)
 	pe.Type = e.Type
 	pe.Data = e.Data
 
@@ -77,10 +80,15 @@ func (e Entry) ToPublicFormat() interface{} {
 	}
 
 	if e.CreatedBy != nil {
-		pe.CreatedBy = e.CreatedBy.ToPublicFormat().(PublicUser)
+		pe.CreatedBy = e.CreatedBy.ToPublicFormat(domain).(PublicUser)
 	}
 
 	pe.CreatedAt = e.CreatedAt
+	pe.UpdatedAt = e.UpdatedAt
 
 	return pe
+}
+
+func EntryWithLocalPart(entryID, domain string) string {
+	return "@" + domain + ":" + entryID
 }

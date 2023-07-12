@@ -2,6 +2,8 @@ package model
 
 import (
 	"database/sql"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -12,17 +14,43 @@ import (
 
 // Primary user struct for DB interactions
 type User struct {
-	ID        string         `json:"id" gorm:"type:uuid;primarykey"`
-	Email     string         `json:"email" gorm:"uniqueIndex" validate:"required,email"`
-	Phone     string         `json:"phone,omitempty"`
-	Password  string         `json:"password,omitempty" validate:"required"`
-	Roles     []string       `json:"roles" gorm:"serializer:json;default:'[]'"`
-	Profile   UserProfile    `json:"profile" gorm:"serializer:json"`
-	Data      datatypes.JSON `json:"data"`
-	IsListed  bool           `json:"is_listed" gorm:"default:false"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt sql.NullTime `gorm:"index"`
+	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
+	Name        string         `json:"name"`
+	Username    string         `json:"username" gorm:"uniqueIndex"`
+	Email       *string        `json:"email" gorm:"uniqueIndex" validate:"email"`
+	Phone       *string        `json:"phone,omitempty" gorm:"uniqueIndex"`
+	Password    string         `json:"password,omitempty"`
+	Roles       []string       `json:"roles" gorm:"serializer:json;default:'[]'"`
+	Profile     UserProfile    `json:"profile" gorm:"serializer:json"`
+	Data        datatypes.JSON `json:"data"`
+	IsConfirmed bool           `json:"is_confirmed" gorm:"default:false"`
+	IsListed    bool           `json:"is_listed" gorm:"default:false"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime `gorm:"index"`
+}
+
+// Signup a new user
+// Email or Phone is required for verification and notification
+type SignupUserReq struct {
+	Name     string `json:"name"`
+	Username string `json:"username" gorm:"uniqueIndex"`
+	Email    string `json:"email" gorm:"uniqueIndex" validate:"email"`
+	Phone    string `json:"phone,omitempty"`
+	Password string `json:"password,omitempty" validate:"required"`
+	IsListed bool   `json:"is_listed" gorm:"default:false"`
+}
+
+// Login an existing user
+// The user may login with either username, email or phone number
+// The type determines which option to use; default is email
+// Supported types are: username, email, phone
+type LoginUserReq struct {
+	Type     string `json:"type"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Password string `json:"password" validate:"required"`
 }
 
 // User extracted from JWT token
@@ -34,9 +62,11 @@ type AuthUser struct {
 
 // User to be returned to client
 type PublicUser struct {
-	ID        string      `json:"id"`
-	Profile   UserProfile `json:"profile"`
-	CreatedAt time.Time   `json:"created_at"`
+	ID                    string      `json:"id"`
+	Username              string      `json:"username"`
+	UsernameWithLocalPart string      `json:"username_with_local_part"`
+	Profile               UserProfile `json:"profile"`
+	CreatedAt             time.Time   `json:"created_at"`
 }
 
 func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
@@ -49,12 +79,7 @@ func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-type UserLogin struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
-}
-
-type UserLoginResponse struct {
+type LoginUserReqResponse struct {
 	Token string `json:"token"`
 }
 
@@ -63,11 +88,13 @@ type JwtCustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (user User) ToPublicFormat() interface{} {
+func (user User) ToPublicFormat(domain string) interface{} {
 	return PublicUser{
-		ID:        user.ID,
-		Profile:   user.Profile,
-		CreatedAt: user.CreatedAt,
+		ID:                    user.ID,
+		Username:              user.Username,
+		UsernameWithLocalPart: UsernameWithLocalPart(user.Username, domain),
+		Profile:               user.Profile,
+		CreatedAt:             user.CreatedAt,
 	}
 }
 
@@ -79,4 +106,42 @@ func (user User) IsAdmin() bool {
 	}
 
 	return false
+}
+
+func StripUsername(username string) string {
+	stripped := strings.ReplaceAll(username, " ", "")
+	return strings.ToLower(stripped)
+}
+
+func IsValidUsername(username string) bool {
+	length := len(username) >= 3 && len(username) <= 20
+	chars := regexp.MustCompile(`^[\w\-._~]+$`).MatchString(username)
+	return length && chars
+}
+
+func UsernameWithLocalPart(username, domain string) string {
+	return "@" + domain + ":" + username
+}
+
+func StripEmail(email string) *string {
+	stripped := strings.ReplaceAll(email, " ", "")
+	stripped = strings.ToLower(stripped)
+	return &stripped
+}
+
+func IsValidEmail(email string) bool {
+	return regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString(email)
+}
+
+func StripPhone(phone string) *string {
+	stripped := strings.ReplaceAll(phone, "-", "")
+	stripped = strings.ReplaceAll(stripped, " ", "")
+	stripped = strings.ReplaceAll(stripped, "(", "")
+	stripped = strings.ReplaceAll(stripped, ")", "")
+	stripped = strings.ToLower(stripped)
+	return &stripped
+}
+
+func IsValidPhone(phone string) bool {
+	return regexp.MustCompile(`^\+?[0-9]{10,15}$`).MatchString(phone)
 }
