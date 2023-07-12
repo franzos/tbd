@@ -6,7 +6,7 @@ import (
 )
 
 func checkConfig() {
-	requiredConfig := []string{"JWT_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME", "AWS_REGION"}
+	requiredConfig := []string{"JWT_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME", "AWS_REGION", "DOMAIN"}
 
 	// Loop over reqired config and check if they are set, and not ""
 	for _, v := range requiredConfig {
