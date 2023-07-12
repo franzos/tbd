@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"tbd/model"
+	"tbd/pgp"
 )
 
 func (h *Handler) FetchEntries(c echo.Context) error {
@@ -66,6 +68,14 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 
 func (h *Handler) CreateEntry(c echo.Context) error {
 	reqUser := c.Get("user").(*model.AuthUser)
+	user := model.User{ID: reqUser.ID}
+	err := h.DB.Model(&model.User{}).First(&user).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found."}
+		}
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch user."}
+	}
 
 	s := model.SubmitEntry{}
 	if err := c.Bind(&s); err != nil {
@@ -110,14 +120,35 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 
 	e.CreatedByID = reqUser.ID
 
+	// Signature
+	passphrase := []byte(os.Getenv("PGP_PASSPHRASE"))
+	privateKey := user.PrivateKey
+
+	// data to JSON string
+	if privateKey != "" {
+		data, err := json.Marshal(e.Data)
+		if err != nil {
+			// TODO: Notify admin
+			log.Println(err)
+		} else {
+			signed, err := pgp.SignData(string(data), privateKey, passphrase)
+			if err != nil {
+				// TODO: Notify admin
+				log.Println(err)
+			} else {
+				e.DataSignature = signed
+			}
+		}
+	}
+
 	r := h.DB.Create(&e)
 	if r.Error != nil {
 		log.Println(r.Error)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to create entry."}
 	}
 
-	err := h.markFilesAsProvisioned(e.Files)
-	if err != nil {
+	provErr := h.markFilesAsProvisioned(e.Files)
+	if provErr != nil {
 		log.Println(err)
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to mark files as provisioned."}
 	}
@@ -130,6 +161,13 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	user := model.User{}
+	if err := h.DB.Model(&model.User{}).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found."}
+		}
+		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch user."}
+	}
 
 	id := c.Param("id")
 
@@ -141,6 +179,29 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 	updateData := make(map[string]interface{})
 	if len(entry.Data) > 0 {
 		updateData["data"] = entry.Data
+
+		// Signature
+		passphrase := []byte(os.Getenv("PGP_PASSPHRASE"))
+		privateKey := user.PrivateKey
+
+		// data to JSON string
+		if privateKey != "" {
+			// JSON string from e.Data; not bytes
+			// so that this works across platfoms (as in, someone can generate a string in JS, pyhton, etc. and it will work)
+			data, err := json.Marshal(entry.Data)
+			if err != nil {
+				// TODO: Notify admin
+				log.Println(err)
+			} else {
+				signed, err := pgp.SignData(string(data), privateKey, passphrase)
+				if err != nil {
+					// TODO: Notify admin
+					log.Println(err)
+				} else {
+					updateData["data_signature"] = signed
+				}
+			}
+		}
 	}
 
 	if len(updateData) > 0 {
@@ -183,4 +244,16 @@ func (h *Handler) DeleteEntry(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, DeleteResponse{Deleted: r.RowsAffected})
+}
+
+func (h *Handler) CountCityResults(c echo.Context) error {
+
+	type Result struct {
+		City    string
+		Results int
+	}
+
+	var results []Result
+	h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results FROM entries GROUP BY city`).Scan(&results)
+	return c.JSON(http.StatusOK, results)
 }

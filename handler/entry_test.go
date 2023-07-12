@@ -75,12 +75,19 @@ func updateEntry(t *testing.T, token string, entryID string, entryData map[strin
 }
 
 func genEntryData(listingType string, files []model.File) map[string]interface{} {
+
 	fake := faker.New()
 	entryData := map[string]interface{}{
 		"type": listingType,
 		"data": map[string]interface{}{
 			"title":       fake.Lorem().Text(60),
 			"description": fake.Lorem().Sentence(8),
+			"location": model.Address{
+				Street:   fake.Address().StreetAddress(),
+				City:     fake.Address().City(),
+				PostCode: fake.Address().PostCode(),
+				Country:  fake.Address().Country(),
+			},
 		},
 	}
 	if files != nil {

@@ -2,8 +2,11 @@ package model
 
 import (
 	"database/sql"
+	"log"
+	"os"
 	"regexp"
 	"strings"
+	"tbd/pgp"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -25,6 +28,8 @@ type User struct {
 	Data        datatypes.JSON `json:"data"`
 	IsConfirmed bool           `json:"is_confirmed" gorm:"default:false"`
 	IsListed    bool           `json:"is_listed" gorm:"default:false"`
+	PrivateKey  string         `json:"private_key"`
+	PublicKey   string         `json:"public_key"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime `gorm:"index"`
@@ -66,6 +71,7 @@ type PublicUser struct {
 	Username              string      `json:"username"`
 	UsernameWithLocalPart string      `json:"username_with_local_part"`
 	Profile               UserProfile `json:"profile"`
+	PublicKey             string      `json:"public_key"`
 	CreatedAt             time.Time   `json:"created_at"`
 }
 
@@ -73,6 +79,18 @@ func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return err
+	}
+
+	name := base.Name
+	email := *base.Email
+	passphrase := os.Getenv("PGP_PASSPHRASE")
+
+	keyPair, err := pgp.GenerateKeyPair(name, email, passphrase)
+	if err != nil {
+		log.Println(err)
+	} else {
+		base.PrivateKey = keyPair.PrivateKey
+		base.PublicKey = keyPair.PublicKey
 	}
 
 	base.ID = id.String()
@@ -94,6 +112,7 @@ func (user User) ToPublicFormat(domain string) interface{} {
 		Username:              user.Username,
 		UsernameWithLocalPart: UsernameWithLocalPart(user.Username, domain),
 		Profile:               user.Profile,
+		PublicKey:             user.PublicKey,
 		CreatedAt:             user.CreatedAt,
 	}
 }
