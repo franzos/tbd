@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -38,7 +39,10 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
 	}
 
-	return c.JSON(http.StatusOK, ListResponse{Total: int64(count), Items: responseArrFormatter[model.Entry](entries, nil)})
+	return c.JSON(
+		http.StatusOK,
+		ListResponse{Total: int64(count), Items: responseArrFormatter[model.Entry](entries, nil, os.Getenv("DOMAIN"))},
+	)
 }
 
 func (h *Handler) FetchEntry(c echo.Context) error {
@@ -54,7 +58,10 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
 	}
 
-	return c.JSON(http.StatusOK, responseFormatter[model.Entry](entry, nil))
+	return c.JSON(
+		http.StatusOK,
+		responseFormatter[model.Entry](entry, nil, os.Getenv("DOMAIN")),
+	)
 }
 
 func (h *Handler) CreateEntry(c echo.Context) error {

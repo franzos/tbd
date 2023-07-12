@@ -8,13 +8,16 @@ import (
 
 	"github.com/icrowley/fake"
 	"github.com/stretchr/testify/assert"
+
+	"tbd/model"
 )
 
 func signupAndLogin(t *testing.T) string {
 	signupURL := "http://localhost:1323/signup"
-	signupData := map[string]string{
-		"email":    fake.EmailAddress(),
-		"password": "password123",
+	signupData := model.SignupUserReq{
+		Name:     fake.FullName(),
+		Email:    fake.EmailAddress(),
+		Password: "password123",
 	}
 	signupPayload, _ := json.Marshal(signupData)
 
@@ -28,9 +31,9 @@ func signupAndLogin(t *testing.T) string {
 	assert.Equal(t, http.StatusCreated, signupRec.StatusCode)
 
 	loginURL := "http://localhost:1323/login"
-	loginData := map[string]string{
-		"email":    signupData["email"],
-		"password": signupData["password"],
+	loginData := model.LoginUserReq{
+		Email:    signupData.Email,
+		Password: signupData.Password,
 	}
 	loginPayload, _ := json.Marshal(loginData)
 
@@ -73,9 +76,9 @@ func TestSignup(t *testing.T) {
 func TestLoginWithCorrectCredentials(t *testing.T) {
 	// Signup
 	signupURL := "http://localhost:1323/signup"
-	signupData := map[string]string{
-		"email":    fake.EmailAddress(),
-		"password": "password123",
+	signupData := model.SignupUserReq{
+		Email:    fake.EmailAddress(),
+		Password: "password123",
 	}
 	signupPayload, _ := json.Marshal(signupData)
 
@@ -88,9 +91,9 @@ func TestLoginWithCorrectCredentials(t *testing.T) {
 
 	// Login
 	loginURL := "http://localhost:1323/login"
-	loginData := map[string]string{
-		"email":    signupData["email"],
-		"password": signupData["password"],
+	loginData := model.LoginUserReq{
+		Email:    signupData.Email,
+		Password: signupData.Password,
 	}
 	loginPayload, _ := json.Marshal(loginData)
 
@@ -107,9 +110,9 @@ func TestLoginWithCorrectCredentials(t *testing.T) {
 func TestLoginWithWrongEmail(t *testing.T) {
 	// Login
 	loginURL := "http://localhost:1323/login"
-	loginData := map[string]string{
-		"email":    "wrong@example.com",
-		"password": "password123",
+	loginData := model.LoginUserReq{
+		Email:    "wrong@example.com",
+		Password: "password123",
 	}
 	loginPayload, _ := json.Marshal(loginData)
 
@@ -127,9 +130,9 @@ func TestLoginWithWrongEmail(t *testing.T) {
 func TestLoginWithWrongPassword(t *testing.T) {
 	// Signup
 	signupURL := "http://localhost:1323/signup"
-	signupData := map[string]string{
-		"email":    fake.EmailAddress(),
-		"password": "password123",
+	signupData := model.SignupUserReq{
+		Email:    fake.EmailAddress(),
+		Password: "password123",
 	}
 	signupPayload, _ := json.Marshal(signupData)
 
@@ -143,7 +146,7 @@ func TestLoginWithWrongPassword(t *testing.T) {
 	// Login
 	loginURL := "http://localhost:1323/login"
 	loginData := map[string]string{
-		"email":    signupData["email"],
+		"email":    signupData.Email,
 		"password": "wrongpassword",
 	}
 	loginPayload, _ := json.Marshal(loginData)

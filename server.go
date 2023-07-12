@@ -57,6 +57,18 @@ func main() {
 		ContentSecurityPolicy: "default-src 'self'",
 	}))
 
+	// CORS default
+	// Allows requests from any origin wth GET, HEAD, PUT, POST or DELETE method.
+	e.Use(middleware.CORS())
+
+	// CORS restricted
+	// Allows requests from any `https://labstack.com` or `https://labstack.net` origin
+	// wth GET, PUT, POST or DELETE method.
+	// e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+	// 	AllowOrigins: []string{"https://labstack.com", "https://labstack.net"},
+	// 	AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
+	// }))
+
 	// Authenticate
 	e.Use(echojwt.WithConfig(getJwtMVConfig()))
 
