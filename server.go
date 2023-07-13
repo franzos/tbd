@@ -102,7 +102,7 @@ func main() {
 	e.POST("/entries", h.CreateEntry)
 	e.GET("/entries", h.FetchEntries)
 	e.GET("/entries/by-city/count", h.EntriesByCity)
-	e.GET("/entries/by-country/count", h.EntriesByCity)
+	e.GET("/entries/by-country/count", h.EntriesByCountry)
 	e.GET("/entries/by-type/count", h.EntriesByType)
 	e.GET("/entries/:id", h.FetchEntry)
 	e.PATCH("/entries/:id", h.UpdateEntry)
