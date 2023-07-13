@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"tbd/model"
 	"testing"
+	"time"
 
 	"github.com/jaswdr/faker"
 	"github.com/stretchr/testify/assert"
@@ -74,34 +76,89 @@ func updateEntry(t *testing.T, token string, entryID string, entryData map[strin
 	}
 }
 
-func genEntryData(listingType string, files []model.File) map[string]interface{} {
+func randate() time.Time {
+	min := time.Date(2020, 1, 0, 0, 0, 0, 0, time.UTC).Unix()
+	max := time.Date(2030, 1, 0, 0, 0, 0, 0, time.UTC).Unix()
+	delta := max - min
 
+	sec := rand.Int63n(delta) + min
+	return time.Unix(sec, 0)
+}
+
+func genEntryData(listingType string, files []model.File) map[string]interface{} {
 	fake := faker.New()
+
+	fakePrice := fmt.Sprintf("%.2f", float64(fake.Currency().Number()))
+
+	address := model.Address{
+		Street:   fake.Address().StreetAddress(),
+		City:     fake.Address().City(),
+		PostCode: fake.Address().PostCode(),
+		Country:  fake.Address().Country(),
+	}
+
+	baseEntry := model.BaseEntry{
+		Title:       fake.Lorem().Text(60),
+		Description: fake.Lorem().Sentence(8),
+		Address:     address,
+	}
+
+	var entry interface{}
+
+	switch listingType {
+	case "apartment-short-term-rental":
+		entry = model.EntryApartmentShortTermRental{
+			BaseEntry:     baseEntry,
+			StartDate:     randate().Format(time.RFC3339),
+			EndDate:       randate().Format(time.RFC3339),
+			Price:         fakePrice,
+			PriceInterval: "month",
+		}
+	case "apartment-long-term-rental":
+		entry = model.EntryApartmentLongTermRental{
+			BaseEntry:     baseEntry,
+			StartDate:     randate().Format(time.RFC3339),
+			Price:         fakePrice,
+			PriceInterval: "month",
+		}
+	case "pet-sitter":
+		entry = model.EntryPetSitter{
+			BaseEntry:     baseEntry,
+			Price:         fakePrice,
+			PriceInterval: "hour",
+		}
+	case "item-sale":
+		entry = model.EntryItemSale{
+			BaseEntry: baseEntry,
+			Price:     fakePrice,
+		}
+	case "looking-for":
+		entry = model.EntryLookingFor{
+			BaseEntry: baseEntry,
+		}
+	default:
+		panic("invalid listing type")
+	}
+
 	entryData := map[string]interface{}{
 		"type": listingType,
-		"data": map[string]interface{}{
-			"title":       fake.Lorem().Text(60),
-			"description": fake.Lorem().Sentence(8),
-			"location": model.Address{
-				Street:   fake.Address().StreetAddress(),
-				City:     fake.Address().City(),
-				PostCode: fake.Address().PostCode(),
-				Country:  fake.Address().Country(),
-			},
-		},
+		"data": entry,
 	}
+
 	if files != nil {
 		entryData["files"] = files
 	}
+
 	return entryData
 }
 
 func TestPostInvalidEntryType(t *testing.T) {
 	token := signupAndLogin(t)
 
-	entryData := genEntryData("carsale", nil)
-
-	rec := performRequest(t, http.MethodPost, "http://localhost:1323/entries", token, entryData)
+	rec := performRequest(t, http.MethodPost, "http://localhost:1323/entries", token, model.Entry{
+		Type: "carsale",
+		Data: nil,
+	})
 	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
 }
 
@@ -146,12 +203,53 @@ func TestPostEntryWithFiles(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
+func TestPostEntryWithFilesPetSitter(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../concorde.jpg")
+	entryData := genEntryData("pet-sitter", files)
+	createdEntry := createEntry(t, token, entryData)
+	retrievedEntry := getEntry(t, token, createdEntry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
+}
+
+func TestPostEntryWithFilesItemSale(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../concorde.jpg")
+	entryData := genEntryData("item-sale", files)
+	createdEntry := createEntry(t, token, entryData)
+	retrievedEntry := getEntry(t, token, createdEntry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
+}
+
+func TestPostEntryWithFilesLookingFor(t *testing.T) {
+	token := signupAndLogin(t)
+
+	files := uploadFiles(t, token, "../concorde.jpg")
+	entryData := genEntryData("looking-for", files)
+	createdEntry := createEntry(t, token, entryData)
+	retrievedEntry := getEntry(t, token, createdEntry.ID)
+
+	assert.Equal(t, len(files), len(retrievedEntry.Files))
+}
+
 func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
 	fake := faker.New()
 	entryData := genEntryData("apartment-short-term-rental", files)
+
+	// Cast the return value of genEntryData to the appropriate type
+	aptShortTermRental, ok := entryData["data"].(model.EntryApartmentShortTermRental)
+	if !ok {
+		t.Fatalf("Invalid entry data type")
+	}
+
+	// Create the entry
 	createdEntry := createEntry(t, token, entryData)
 	retrievedEntry := getEntry(t, token, createdEntry.ID)
 
@@ -162,7 +260,7 @@ func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 	updateData := map[string]interface{}{
 		"data": map[string]interface{}{
 			"title":       newTitle,
-			"description": entryData["data"].(map[string]interface{})["description"],
+			"description": aptShortTermRental.Description,
 		},
 	}
 

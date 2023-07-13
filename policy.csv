@@ -3,6 +3,9 @@ p, anonymous, /signup, write
 p, anonymous, /login, write
 p, anonymous, /entries, read
 p, anonymous, /entries/:id, read
+p, anonymous, /entries/by-city/count, read
+p, anonymous, /entries/by-country/count, read
+p, anonymous, /entries/by-type/count, read
 p, member, /users, read
 p, member, /users/:id, write
 p, member, /entries, write

@@ -71,6 +71,18 @@ var publicPaths = []PublicPaths{
 		Path:   "/files/:id/download",
 		Method: "GET",
 	},
+	{
+		Path:   "/entries/by-city/count",
+		Method: "GET",
+	},
+	{
+		Path:   "/entries/by-country/count",
+		Method: "GET",
+	},
+	{
+		Path:   "/entries/by-type/count",
+		Method: "GET",
+	},
 }
 
 func getJwtMVConfig() echojwt.Config {

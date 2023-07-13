@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 
+	"github.com/go-playground/validator"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 
@@ -16,34 +16,115 @@ import (
 )
 
 func (h *Handler) FetchEntries(c echo.Context) error {
-	offset, _ := strconv.Atoi(c.QueryParam("offset"))
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-
-	// Defaults
-	if offset == 0 {
-		offset = 1
-	}
-	if limit == 0 {
-		limit = 100
+	queryParams := new(model.EntryQueryParams)
+	if err := (&echo.DefaultBinder{}).BindQueryParams(c, queryParams); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	count := int64(0)
-	entries := []model.Entry{}
-	r := h.DB.Model(&model.Entry{}).
-		Preload("CreatedBy").Preload("Files").
-		Order("created_at desc").
-		Count(&count).
-		Offset((offset - 1) * limit).
-		Limit(limit).
-		Find(&entries)
-	if r.Error != nil {
-		log.Println(r.Error)
-		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entries."}
+	// Validate query params
+	var validate = validator.New()
+	if err := validate.Struct(queryParams); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// defaults
+	if queryParams.Offset < 0 {
+		queryParams.Offset = 0
+	}
+	if queryParams.Limit < 1 {
+		queryParams.Limit = 20
+	}
+
+	var entries []model.Entry
+	var count int64
+	var params []interface{}
+
+	query := ""
+
+	if queryParams.Type != "" {
+		query += " AND type = ?"
+		params = append(params, queryParams.Type)
+	}
+	fmt.Println("Parameters TYPE: ", params)
+
+	if queryParams.Price != "" {
+		op, val := getOperatorAndValue(queryParams.Price)
+		query = appendQuery(query, "JSON_EXTRACT(data, '$.price')", op, "integer", val, &params)
+	}
+	fmt.Println("Parameters PRICE: ", params)
+
+	if queryParams.StartDate != "" {
+		op, val := getOperatorAndValue(queryParams.StartDate)
+		query = appendQuery(query, "JSON_EXTRACT(data, '$.start_date')", op, "", val, &params)
+	}
+
+	if queryParams.EndDate != "" {
+		op, val := getOperatorAndValue(queryParams.EndDate)
+		query = appendQuery(query, "JSON_EXTRACT(data, '$.end_date')", op, "integer", val, &params)
+	}
+
+	if queryParams.Country != "" {
+		op, val := getOperatorAndValue(queryParams.Country)
+		query = appendQuery(query, "JSON_EXTRACT(data, '$.address.country')", op, "", val, &params)
+	}
+
+	if queryParams.City != "" {
+		op, val := getOperatorAndValue(queryParams.City)
+		query = appendQuery(query, "JSON_EXTRACT(data, '$.address.city')", op, "", val, &params)
+	}
+
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM entries WHERE 1=1 %v", (query + ".")[:len(query)])
+	query = fmt.Sprintf("SELECT * FROM entries WHERE 1=1 %v", query)
+
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	params = append(params, queryParams.Limit, queryParams.Offset)
+
+	fmt.Println("Final query: ", query)
+	fmt.Println("Parameters: ", params)
+
+	// Run the queries
+	rows, err := h.DB.Raw(query, params...).Rows()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var entry model.Entry
+
+		if err := h.DB.ScanRows(rows, &entry); err != nil {
+			log.Println(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+
+		// Query for Files
+		fileQuery := `SELECT files.* FROM files
+        INNER JOIN entry_files ON entry_files.file_id = files.id
+        WHERE entry_files.entry_id = ?`
+		if err := h.DB.Raw(fileQuery, entry.ID).Find(&entry.Files).Error; err != nil {
+			log.Println(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+
+		// Query for CreatedBy
+		createdByQuery := `SELECT users.* FROM users WHERE users.id = ?`
+		if err := h.DB.Raw(createdByQuery, entry.CreatedByID).Scan(&entry.CreatedBy).Error; err != nil {
+			log.Println(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := h.DB.Raw(countQuery, params...).Count(&count).Error; err != nil {
+		log.Println(err)
+		return err
 	}
 
 	return c.JSON(
 		http.StatusOK,
-		ListResponse{Total: int64(count), Items: responseArrFormatter[model.Entry](entries, nil, os.Getenv("DOMAIN"))},
+		ListResponse{Total: count, Items: responseArrFormatter[model.Entry](entries, nil, os.Getenv("DOMAIN"))},
 	)
 }
 
@@ -246,14 +327,74 @@ func (h *Handler) DeleteEntry(c echo.Context) error {
 	return c.JSON(http.StatusOK, DeleteResponse{Deleted: r.RowsAffected})
 }
 
-func (h *Handler) CountCityResults(c echo.Context) error {
+func (h *Handler) EntriesByCity(c echo.Context) error {
+	// Filter result by name if provided (LIKE)
+	name := c.QueryParam("name")
+	limit := c.QueryParam("limit")
+
+	if limit == "" {
+		limit = "100"
+	}
 
 	type Result struct {
-		City    string
-		Results int
+		City    string `json:"city"`
+		Results int    `json:"results"`
 	}
 
 	var results []Result
-	h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results FROM entries GROUP BY city`).Scan(&results)
+
+	if name != "" {
+		h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results 
+				FROM entries 
+				WHERE json_extract(data, '$.location.city') LIKE ? 
+				GROUP BY city 
+				LIMIT ?`, "%"+name+"%", limit).Scan(&results)
+	} else {
+		h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results 
+				FROM entries 
+				GROUP BY city 
+				LIMIT ?`, limit).Scan(&results)
+	}
+	return c.JSON(http.StatusOK, results)
+}
+
+func (h *Handler) EntriesByCountry(c echo.Context) error {
+
+	type Result struct {
+		Country string `json:"country"`
+		Results int    `json:"results"`
+	}
+
+	var results []Result
+	h.DB.Raw(`SELECT json_extract(data, '$.location.country') as country, count(*) as results FROM entries GROUP BY country`).Scan(&results)
+	return c.JSON(http.StatusOK, results)
+}
+
+func (h *Handler) EntriesByType(c echo.Context) error {
+	type Result struct {
+		Type    string `json:"type"`
+		Results int    `json:"results"`
+	}
+
+	// Extract query parameters
+	city := c.QueryParam("city")
+	country := c.QueryParam("country")
+
+	var results []Result
+	var query string
+	var params []interface{}
+
+	// Construct the SQL query based on the query parameters
+	if city != "" {
+		query = `SELECT type, COUNT(*) AS results FROM entries WHERE JSON_EXTRACT(data, '$.address.city') = ? GROUP BY type`
+		params = append(params, city)
+	} else if country != "" {
+		query = `SELECT type, COUNT(*) AS results FROM entries WHERE JSON_EXTRACT(data, '$.address.country') = ? GROUP BY type`
+		params = append(params, country)
+	} else {
+		query = `SELECT type, COUNT(*) AS results FROM entries GROUP BY type`
+	}
+
+	h.DB.Raw(query, params...).Scan(&results)
 	return c.JSON(http.StatusOK, results)
 }

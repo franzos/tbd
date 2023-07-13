@@ -1,7 +1,6 @@
 package model
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +13,9 @@ var entryTypes = []string{
 	"apartment-short-term-rental",
 	// < 3 months
 	"apartment-long-term-rental",
-	"apartment-sale",
+	"pet-sitter",
+	"item-sale",
+	"looking-for",
 }
 
 // Primary entry struct for DB interactions
@@ -29,7 +30,6 @@ type Entry struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	ExpiresAt     time.Time
-	DeletedAt     sql.NullTime `gorm:"index"`
 }
 
 // Entry to be returned to client
