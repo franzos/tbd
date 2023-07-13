@@ -19,6 +19,11 @@ var entryTypes = []string{
 }
 
 // Primary entry struct for DB interactions
+// Data is signed and what's transferred should the user move communities
+// City is extracted from Data and matched to the most applicable on the community; if none is found, one is created
+// Flow is data -> entry; so if the user updates the City in entry.data.address.city, entry.city is updated
+// Country is ISO code
+// State is english name
 type Entry struct {
 	ID            string         `json:"id" gorm:"type:uuid;primarykey"`
 	Type          string         `json:"type" validate:"required"`
@@ -27,6 +32,8 @@ type Entry struct {
 	Files         []File         `json:"files,omitempty" gorm:"many2many:entry_files;"`
 	CreatedByID   string         `json:"-"  gorm:"type:uuid"`
 	CreatedBy     *User          `json:"created_by,omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	CityID        string         `json:"-" gorm:"type:uuid"`
+	City          *City          `json:"city,omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	ExpiresAt     time.Time
@@ -40,6 +47,7 @@ type PublicEntry struct {
 	Data            datatypes.JSON `json:"data"`
 	DataSignature   string         `json:"data_signature"`
 	Files           []PublicFile   `json:"files,omitempty"`
+	City            PublicCity     `json:"city,omitempty"`
 	CreatedBy       PublicUser     `json:"created_by,omitempty"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
@@ -83,6 +91,10 @@ func (e Entry) ToPublicFormat(domain string) interface{} {
 
 	if e.Files != nil {
 		pe.Files = publicFilesFromFiles(e.Files)
+	}
+
+	if e.City != nil {
+		pe.City = e.City.ToPublicFormat()
 	}
 
 	if e.CreatedBy != nil {

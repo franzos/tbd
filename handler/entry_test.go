@@ -90,11 +90,13 @@ func genEntryData(listingType string, files []model.File) map[string]interface{}
 
 	fakePrice := fmt.Sprintf("%.2f", float64(fake.Currency().Number()))
 
+	fakeAddress := fake.Address()
 	address := model.Address{
-		Street:   fake.Address().StreetAddress(),
-		City:     fake.Address().City(),
-		PostCode: fake.Address().PostCode(),
-		Country:  fake.Address().Country(),
+		Street:   fakeAddress.StreetAddress(),
+		City:     fakeAddress.City(),
+		PostCode: fakeAddress.PostCode(),
+		State:    fakeAddress.State(),
+		Country:  fakeAddress.Country(),
 	}
 
 	baseEntry := model.BaseEntry{

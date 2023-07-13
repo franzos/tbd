@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/go-playground/validator"
 	"github.com/labstack/echo/v4"
@@ -65,18 +66,18 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 
 	if queryParams.Country != "" {
 		op, val := getOperatorAndValue(queryParams.Country)
-		query = appendQuery(query, "JSON_EXTRACT(data, '$.address.country')", op, "", val, &params)
+		query = appendQuery(query, "cities.country", op, "", val, &params)
 	}
 
 	if queryParams.City != "" {
 		op, val := getOperatorAndValue(queryParams.City)
-		query = appendQuery(query, "JSON_EXTRACT(data, '$.address.city')", op, "", val, &params)
+		query = appendQuery(query, "cities.name", op, "", val, &params)
 	}
 
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM entries WHERE 1=1 %v", (query + ".")[:len(query)])
-	query = fmt.Sprintf("SELECT * FROM entries WHERE 1=1 %v", query)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM entries LEFT JOIN cities ON entries.city_id = cities.id WHERE 1=1 %v", (query + ".")[:len(query)])
+	query = fmt.Sprintf("SELECT entries.* FROM entries LEFT JOIN cities ON entries.city_id = cities.id WHERE 1=1 %v", query)
 
-	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	query += " ORDER BY entries.created_at DESC LIMIT ? OFFSET ?"
 	params = append(params, queryParams.Limit, queryParams.Offset)
 
 	fmt.Println("Final query: ", query)
@@ -114,6 +115,13 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
+		// Query for City
+		cityQuery := `SELECT cities.* FROM cities WHERE cities.id = ?`
+		if err := h.DB.Raw(cityQuery, entry.CityID).Scan(&entry.City).Error; err != nil {
+			log.Println(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+
 		entries = append(entries, entry)
 	}
 
@@ -133,7 +141,7 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 
 	var entry = model.Entry{ID: id}
 
-	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").First(&entry).Error
+	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Preload("City").First(&entry).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "Entry not found."}
@@ -168,9 +176,25 @@ func (h *Handler) CreateEntry(c echo.Context) error {
 		return err
 	}
 
+	// TODO: Validate data
 	e := model.Entry{
 		Type: s.Type,
 		Data: s.Data,
+	}
+
+	// Extract city and country
+	dataContent := model.BaseEntry{}
+	if err := json.Unmarshal([]byte(e.Data), &dataContent); err != nil {
+		log.Println(err)
+	} else {
+		if dataContent.Address.City != "" {
+			city, err := h.GetAndCreateIfNotFoundCity(dataContent.Address)
+			if err != nil {
+				log.Println(err)
+			} else {
+				e.CityID = city.ID
+			}
+		}
 	}
 
 	if s.Files != nil {
@@ -252,24 +276,23 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 
 	id := c.Param("id")
 
-	entry := model.Entry{}
-	if err := c.Bind(&entry); err != nil {
+	e := model.Entry{}
+	if err := c.Bind(&e); err != nil {
 		return err
 	}
 
 	updateData := make(map[string]interface{})
-	if len(entry.Data) > 0 {
-		updateData["data"] = entry.Data
+	if len(e.Data) > 0 {
+		updateData["data"] = e.Data
+
+		// TODO: Check if data is valid and has changed
 
 		// Signature
 		passphrase := []byte(os.Getenv("PGP_PASSPHRASE"))
 		privateKey := user.PrivateKey
 
-		// data to JSON string
 		if privateKey != "" {
-			// JSON string from e.Data; not bytes
-			// so that this works across platfoms (as in, someone can generate a string in JS, pyhton, etc. and it will work)
-			data, err := json.Marshal(entry.Data)
+			data, err := json.Marshal(e.Data)
 			if err != nil {
 				// TODO: Notify admin
 				log.Println(err)
@@ -285,6 +308,21 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 		}
 	}
 
+	// Extract city state and country
+	dataContent := model.BaseEntry{}
+	if err := json.Unmarshal([]byte(e.Data), &dataContent); err != nil {
+		log.Println(err)
+	} else {
+		if dataContent.Address.City != "" {
+			city, err := h.GetAndCreateIfNotFoundCity(dataContent.Address)
+			if err != nil {
+				log.Println(err)
+			} else {
+				updateData["city_id"] = city.ID
+			}
+		}
+	}
+
 	if len(updateData) > 0 {
 		r := h.DB.Model(&model.Entry{ID: id}).Updates(updateData)
 		if r.Error != nil {
@@ -293,7 +331,7 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 		}
 	}
 
-	if len(entry.Files) > 0 {
+	if len(e.Files) > 0 {
 		currentEntry := model.Entry{}
 		result := h.DB.Preload("Files").First(&currentEntry, "id = ?", id)
 		if result.Error != nil {
@@ -301,7 +339,7 @@ func (h *Handler) UpdateEntry(c echo.Context) error {
 			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
 		}
 
-		h.DB.Model(&currentEntry).Association("Files").Replace(&entry.Files)
+		h.DB.Model(&currentEntry).Association("Files").Replace(&e.Files)
 	}
 
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: 1}) // Assume 1 row affected since the entry exists and you're here.
@@ -330,10 +368,10 @@ func (h *Handler) DeleteEntry(c echo.Context) error {
 func (h *Handler) EntriesByCity(c echo.Context) error {
 	// Filter result by name if provided (LIKE)
 	name := c.QueryParam("name")
-	limit := c.QueryParam("limit")
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 
-	if limit == "" {
-		limit = "100"
+	if limit <= 0 {
+		limit = 100
 	}
 
 	type Result struct {
@@ -344,16 +382,18 @@ func (h *Handler) EntriesByCity(c echo.Context) error {
 	var results []Result
 
 	if name != "" {
-		h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results 
-				FROM entries 
-				WHERE json_extract(data, '$.location.city') LIKE ? 
-				GROUP BY city 
-				LIMIT ?`, "%"+name+"%", limit).Scan(&results)
+		h.DB.Raw(`SELECT cities.name as city, count(*) as results 
+				  FROM entries 
+				  INNER JOIN cities ON entries.city_id = cities.id
+				  WHERE cities.name LIKE ? 
+				  GROUP BY cities.name
+				  LIMIT ?`, "%"+name+"%", limit).Scan(&results)
 	} else {
-		h.DB.Raw(`SELECT json_extract(data, '$.location.city') as city, count(*) as results 
-				FROM entries 
-				GROUP BY city 
-				LIMIT ?`, limit).Scan(&results)
+		h.DB.Raw(`SELECT cities.name as city, count(*) as results 
+				  FROM entries 
+				  INNER JOIN cities ON entries.city_id = cities.id
+				  GROUP BY cities.name 
+				  LIMIT ?`, limit).Scan(&results)
 	}
 	return c.JSON(http.StatusOK, results)
 }
@@ -366,7 +406,10 @@ func (h *Handler) EntriesByCountry(c echo.Context) error {
 	}
 
 	var results []Result
-	h.DB.Raw(`SELECT json_extract(data, '$.location.country') as country, count(*) as results FROM entries GROUP BY country`).Scan(&results)
+	h.DB.Raw(`SELECT cities.country as country, count(*) as results 
+			  FROM entries 
+			  INNER JOIN cities ON entries.city_id = cities.id
+			  GROUP BY cities.country`).Scan(&results)
 	return c.JSON(http.StatusOK, results)
 }
 
