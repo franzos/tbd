@@ -6,7 +6,7 @@ import (
 )
 
 func checkConfig() {
-	requiredConfig := []string{"JWT_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME", "AWS_REGION", "DOMAIN"}
+	requiredConfig := []string{"JWT_SECRET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME", "AWS_REGION", "DOMAIN", "PGP_PASSPHRASE"}
 
 	// Loop over reqired config and check if they are set, and not ""
 	for _, v := range requiredConfig {
@@ -27,7 +27,7 @@ func checkConfig() {
 			fmt.Printf("Error checking file %s: %v\n", file1, err)
 		}
 	} else {
-		fmt.Printf("File %s exists\n", file1)
+		fmt.Printf("Check: File %s exists\n", file1)
 	}
 
 	// Check if file2 exists
@@ -39,7 +39,7 @@ func checkConfig() {
 			panic("Error checking file " + file2)
 		}
 	} else {
-		fmt.Printf("File %s exists\n", file2)
+		fmt.Printf("Check: File %s exists\n", file2)
 	}
 }
 
