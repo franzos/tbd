@@ -66,12 +66,22 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 
 	if queryParams.Country != "" {
 		op, val := getOperatorAndValue(queryParams.Country)
-		query = appendQuery(query, "cities.country", op, "", val, &params)
+		query = appendQuery(query, "cities.country_code", op, "", val, &params)
 	}
 
 	if queryParams.City != "" {
 		op, val := getOperatorAndValue(queryParams.City)
 		query = appendQuery(query, "cities.name", op, "", val, &params)
+	}
+
+	if queryParams.CitySlug != "" {
+		op, val := getOperatorAndValue(queryParams.CitySlug)
+		query = appendQuery(query, "cities.slug", op, "", val, &params)
+	}
+
+	if queryParams.CityGlobID != "" {
+		op, val := getOperatorAndValue(queryParams.CityGlobID)
+		query = appendQuery(query, "cities.glob_id", op, "", val, &params)
 	}
 
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM entries LEFT JOIN cities ON entries.city_id = cities.id WHERE 1=1 %v", (query + ".")[:len(query)])
@@ -375,24 +385,26 @@ func (h *Handler) EntriesByCity(c echo.Context) error {
 	}
 
 	type Result struct {
-		City    string `json:"city"`
-		Results int    `json:"results"`
+		City        string `json:"city"`
+		Slug        string `json:"slug"`
+		CountryCode string `json:"country_code"`
+		Results     int    `json:"results"`
 	}
 
 	var results []Result
 
 	if name != "" {
-		h.DB.Raw(`SELECT cities.name as city, count(*) as results 
+		h.DB.Raw(`SELECT cities.name as city, cities.slug as slug, cities.country_code as country_code, count(*) as results 
 				  FROM entries 
 				  INNER JOIN cities ON entries.city_id = cities.id
 				  WHERE cities.name LIKE ? 
-				  GROUP BY cities.name
+				  GROUP BY cities.name, cities.slug, cities.country_code
 				  LIMIT ?`, "%"+name+"%", limit).Scan(&results)
 	} else {
-		h.DB.Raw(`SELECT cities.name as city, count(*) as results 
+		h.DB.Raw(`SELECT cities.name as city, cities.slug as slug, cities.country_code as country_code, count(*) as results 
 				  FROM entries 
 				  INNER JOIN cities ON entries.city_id = cities.id
-				  GROUP BY cities.name 
+				  GROUP BY cities.name, cities.slug, cities.country_code
 				  LIMIT ?`, limit).Scan(&results)
 	}
 	return c.JSON(http.StatusOK, results)

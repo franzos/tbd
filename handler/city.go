@@ -19,8 +19,8 @@ func (h *Handler) GetAndCreateIfNotFoundCity(address model.Address) (*model.City
 		country := countries.ByName(address.Country)
 		unknown := countries.Unknown
 		// If unknown, we simply ignore this
-		if country.Alpha2() != unknown.Alpha2() {
-			city.Country = country.Alpha2()
+		if country.Alpha2() != unknown.Alpha3() {
+			city.CountryCode = strings.ToLower(country.Alpha2())
 
 			if address.State != "" {
 				states := country.Subdivisions()
@@ -36,7 +36,7 @@ func (h *Handler) GetAndCreateIfNotFoundCity(address model.Address) (*model.City
 		}
 	}
 
-	slug := model.CitySlugAuto(city.Country, city.State, city.Name)
+	slug := model.CitySlugAuto(city.CountryCode, city.State, city.Name)
 
 	err := h.DB.Where("slug = ?", slug).First(&city).Error
 	if err != nil {
