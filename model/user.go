@@ -18,6 +18,8 @@ import (
 // Primary user struct for DB interactions
 type User struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
+	ImageID     *string        `json:"image_id"`
+	Image       *File          `json:"image,omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	Name        string         `json:"name"`
 	Username    string         `json:"username" gorm:"uniqueIndex"`
 	Email       *string        `json:"email" gorm:"uniqueIndex" validate:"email"`
@@ -68,6 +70,7 @@ type AuthUser struct {
 // User to be returned to client
 type PublicUser struct {
 	ID                    string      `json:"id"`
+	Image                 PublicFile  `json:"image,omitempty"`
 	Username              string      `json:"username"`
 	UsernameWithLocalPart string      `json:"username_with_local_part"`
 	Profile               UserProfile `json:"profile"`

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -37,6 +38,7 @@ func (h *Handler) FetchUsers(c echo.Context) error {
 	r := h.DB.Model(&model.User{}).
 		Order("created_at desc").
 		Count(&count).
+		Preload("Image").
 		Offset((offset - 1) * limit).
 		Limit(limit).
 		Find(&users)
@@ -52,7 +54,7 @@ func (h *Handler) FetchUser(c echo.Context) error {
 
 	var user = model.User{ID: id}
 
-	r := h.DB.First(&user)
+	r := h.DB.First(&user).Preload("Image")
 	if r.Error != nil {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found."}
@@ -290,6 +292,7 @@ func (h *Handler) Me(c echo.Context) error {
 	}
 
 	u.Password = ""
+	u.PrivateKey = ""
 	return c.JSON(http.StatusOK, u)
 }
 
@@ -302,13 +305,33 @@ func (h *Handler) UpdateMe(c echo.Context) error {
 	}
 
 	// We really only allow updating the data field for now
-	r := h.DB.Model(model.User{ID: reqUser.ID}).Update("data", nu.Data)
-	if r.Error != nil {
-		if r.Error == gorm.ErrRecordNotFound {
-			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
+	if !nu.Profile.IsEmpty() {
+		profileJSON, err := json.Marshal(nu.Profile)
+		if err != nil {
+			// handle error
+			return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Error marshaling profile data"}
 		}
-		return &echo.HTTPError{Code: http.StatusInternalServerError}
+
+		r := h.DB.Model(&model.User{ID: reqUser.ID}).Update("profile", string(profileJSON))
+		if r.Error != nil {
+			if r.Error == gorm.ErrRecordNotFound {
+				return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
+			}
+			return &echo.HTTPError{Code: http.StatusInternalServerError}
+		}
 	}
 
-	return c.JSON(http.StatusOK, UpdateResponse{Updated: r.RowsAffected})
+	if nu.Image != nil {
+		current := model.User{ID: reqUser.ID}
+		r := h.DB.First(&current).Preload("Image")
+		if r.Error != nil {
+			if r.Error == gorm.ErrRecordNotFound {
+				return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
+			}
+		}
+		// TODO: Delete current image
+		h.DB.Model(&r).Association("Image").Replace(&nu.Image)
+	}
+
+	return c.JSON(http.StatusOK, UpdateResponse{Updated: 1})
 }
