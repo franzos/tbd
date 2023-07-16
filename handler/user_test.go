@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -248,8 +247,6 @@ func TestAccountMeUpdate(t *testing.T) {
 	data := make(map[string]interface{})
 	json.Unmarshal(body, &data)
 
-	fmt.Println(data)
-
 	// Extract the profile from the response
 	profile := data["profile"].(map[string]interface{})
 
@@ -282,17 +279,17 @@ func TestAccountMeUpdateImage(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, accountRec.StatusCode)
 
-	var accountResponse struct {
-		User struct {
-			Image model.File `json:"image"`
-		} `json:"user"`
-	}
+	accountResponse := model.User{}
 
 	err = json.NewDecoder(accountRec.Body).Decode(&accountResponse)
 	assert.NoError(t, err)
 
 	// Check if the image is correctly updated
-	assert.Equal(t, files[0].ID, accountResponse.User.Image.ID)
+	if accountResponse.Image != nil {
+		assert.Equal(t, files[0].ID, accountResponse.Image.ID)
+	} else {
+		t.Fatal("Image is nil")
+	}
 }
 
 func TestUserDeleteSelf(t *testing.T) {

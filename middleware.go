@@ -83,6 +83,10 @@ var publicPaths = []PublicPaths{
 		Path:   "/entries/by-type/count",
 		Method: "GET",
 	},
+	{
+		Path:   "/search",
+		Method: "GET",
+	},
 }
 
 func getJwtMVConfig() echojwt.Config {

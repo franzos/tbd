@@ -70,10 +70,7 @@ func updateEntry(t *testing.T, token string, entryID string, entryData map[strin
 	entryURL := fmt.Sprintf("http://localhost:1323/entries/%s", entryID)
 
 	rec := performRequest(t, http.MethodPatch, entryURL, token, entryData)
-
-	if rec.StatusCode != http.StatusOK {
-		t.Fatalf("Expected status OK, got: %v", rec.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, rec.StatusCode)
 }
 
 func randate() time.Time {
@@ -154,7 +151,7 @@ func genEntryData(listingType string, files []model.File) map[string]interface{}
 	return entryData
 }
 
-func TestPostInvalidEntryType(t *testing.T) {
+func TestEntryPostInvalid(t *testing.T) {
 	token := signupAndLogin(t)
 
 	rec := performRequest(t, http.MethodPost, "http://localhost:1323/entries", token, model.Entry{
@@ -164,18 +161,19 @@ func TestPostInvalidEntryType(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.StatusCode)
 }
 
-func TestPostNewEntryWithoutFilesAndGet(t *testing.T) {
+func TestEntryPostValid(t *testing.T) {
 	token := signupAndLogin(t)
 
 	entryData := genEntryData("apartment-short-term-rental", nil)
 	createdEntry := createEntry(t, token, entryData)
-	retrievedEntry := getEntry(t, token, createdEntry.ID)
 
+	// Get entry
+	retrievedEntry := getEntry(t, token, createdEntry.ID)
 	assert.Equal(t, createdEntry.ID, retrievedEntry.ID)
 	assert.Equal(t, createdEntry.Type, retrievedEntry.Type)
 }
 
-func TestPostNewEntryWithoutFilesAndList(t *testing.T) {
+func TestEntryList(t *testing.T) {
 	token := signupAndLogin(t)
 
 	entryData := genEntryData("apartment-short-term-rental", nil)
@@ -194,7 +192,7 @@ func TestPostNewEntryWithoutFilesAndList(t *testing.T) {
 	assert.GreaterOrEqual(t, int(response.Total), 1)
 }
 
-func TestPostEntryWithFiles(t *testing.T) {
+func TestEntryPostWithFiles(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -205,7 +203,7 @@ func TestPostEntryWithFiles(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
-func TestPostEntryWithFilesPetSitter(t *testing.T) {
+func TestEntryPostWithFilesPetSitter(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -216,7 +214,7 @@ func TestPostEntryWithFilesPetSitter(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
-func TestPostEntryWithFilesItemSale(t *testing.T) {
+func TestEntryPostWithFilesItemSale(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -227,7 +225,7 @@ func TestPostEntryWithFilesItemSale(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
-func TestPostEntryWithFilesLookingFor(t *testing.T) {
+func TestEntryPostWithFilesLookingFor(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -238,7 +236,7 @@ func TestPostEntryWithFilesLookingFor(t *testing.T) {
 	assert.Equal(t, len(files), len(retrievedEntry.Files))
 }
 
-func TestPostEntryWithFilesAndUpdate(t *testing.T) {
+func TestEntryUpdate(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -284,7 +282,7 @@ func TestPostEntryWithFilesAndUpdate(t *testing.T) {
 	assert.Equal(t, newTitle, title)
 }
 
-func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
+func TestEntryUpdateUnauthorizedUser(t *testing.T) {
 	token := signupAndLogin(t)
 
 	files := uploadFiles(t, token, "../concorde.jpg")
@@ -308,7 +306,7 @@ func TestPostEntryWithFilesAndUpdateUnauthorizedUser(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
-func TestPostEntryWithFilesAndDelete(t *testing.T) {
+func TestEntryDeleteWithFiles(t *testing.T) {
 	token := signupAndLogin(t)
 
 	// Upload files and create an entry with those files
@@ -326,9 +324,11 @@ func TestPostEntryWithFilesAndDelete(t *testing.T) {
 	// Retrieve the entry again and verify the file is gone
 	retrievedEntry = getEntry(t, token, createdEntry.ID)
 	assert.Equal(t, len(files)-1, len(retrievedEntry.Files))
+
+	// TODO: Check files are gone
 }
 
-func TestDeleteEntry(t *testing.T) {
+func TestEntryDelete(t *testing.T) {
 	token := signupAndLogin(t)
 
 	entryData := genEntryData("apartment-short-term-rental", nil)
@@ -338,7 +338,7 @@ func TestDeleteEntry(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.StatusCode)
 }
 
-func TestDeleteEntryWithUnauthorizedUser(t *testing.T) {
+func TestEntryDeleteUnauthorizedUser(t *testing.T) {
 	token := signupAndLogin(t)
 
 	entryData := genEntryData("apartment-short-term-rental", nil)
@@ -352,6 +352,6 @@ func TestDeleteEntryWithUnauthorizedUser(t *testing.T) {
 func TestDeleteNonexistentEntry(t *testing.T) {
 	token := signupAndLogin(t)
 
-	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/nonexistent-id", token, nil)
+	rec := performRequest(t, http.MethodDelete, "http://localhost:1323/entries/6ec84364-931e-4e8b-a5ec-5d4f68e4a1ba", token, nil)
 	assert.Equal(t, http.StatusNotFound, rec.StatusCode)
 }

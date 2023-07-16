@@ -10,7 +10,7 @@ type GenericEntity interface {
 
 type roleResponseFormatterFunc[I any] func(data I) interface{}
 
-func responseFormatter[I GenericEntity](data I, roles []string, domain string) any {
+func responseFormatter[I GenericEntity](data I, roles []string, domain string) interface{} {
 	if roles == nil {
 		return data.ToPublicFormat(domain)
 	}
@@ -24,7 +24,7 @@ func responseFormatter[I GenericEntity](data I, roles []string, domain string) a
 	return data.ToPublicFormat(domain)
 }
 
-func responseArrFormatter[I GenericEntity](data []I, roles []string, domain string) []any {
+func responseArrFormatter[I GenericEntity](data []I, roles []string, domain string) interface{} {
 	res := []any{}
 	for _, v := range data {
 		res = append(res, responseFormatter(v, roles, domain))

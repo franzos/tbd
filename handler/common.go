@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strings"
+	"tbd/model"
 )
 
 type UpdateResponse struct {
@@ -16,6 +17,26 @@ type DeleteResponse struct {
 type ListResponse struct {
 	Total int64       `json:"total"`
 	Items interface{} `json:"items"`
+}
+
+type ListResponseUser struct {
+	ListResponse
+	Items []model.PublicUser `json:"items"`
+}
+
+type ListResponseEntry struct {
+	*ListResponse
+	Items []model.PublicEntry `json:"items"`
+}
+
+type ListResponseFile struct {
+	*ListResponse
+	Items []model.PublicFile `json:"items"`
+}
+
+type ListResponseComment struct {
+	*ListResponse
+	Items []model.PublicComment `json:"items"`
 }
 
 func getOperatorAndValue(param string) (string, []string) {

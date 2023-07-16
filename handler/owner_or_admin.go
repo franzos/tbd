@@ -6,30 +6,47 @@ import (
 	"net/http"
 	"tbd/model"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+func errorMsgs(name string) map[string]string {
+	msgs := map[string]string{
+		"notFound":     fmt.Sprintf("%v not found.", name),
+		"fetchFailed":  fmt.Sprintf("Failed to fetch %v.", name),
+		"noPermission": fmt.Sprintf("You do not have permission to change this %v.", name),
+	}
+	return msgs
+}
+
+// Runs 3 checks
+// 1. Check if the UUID is valid
+// 2. Check if the object exists
+// 3. Check if the user is the owner of the object or an admin
 
 // TODO: Improve types
 func (h *Handler) isOwnerOrAdmin(c echo.Context, objectID string, objectType string) (interface{}, error) {
 	reqUser := c.Get("user").(*model.AuthUser)
 
+	if _, err := uuid.Parse(objectID); err != nil {
+		return nil, &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid UUID."}
+	}
+
 	var dbObject interface{}
 	var errMsgs map[string]string
 	if objectType == "file" {
 		dbObject = &model.File{}
-		errMsgs = map[string]string{
-			"notFound":     "File not found.",
-			"fetchFailed":  "Failed to fetch file.",
-			"noPermission": "You do not have permission to update this file.",
-		}
+		errMsgs = errorMsgs("file")
 	} else if objectType == "entry" {
 		dbObject = &model.Entry{}
-		errMsgs = map[string]string{
-			"notFound":     "Entry not found.",
-			"fetchFailed":  "Failed to fetch entry.",
-			"noPermission": "You do not have permission to update this entry.",
-		}
+		errMsgs = errorMsgs("entry")
+	} else if objectType == "vote" {
+		dbObject = &model.Vote{}
+		errMsgs = errorMsgs("vote")
+	} else if objectType == "comment" {
+		dbObject = &model.Comment{}
+		errMsgs = errorMsgs("comment")
 	} else {
 		return nil, &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid object type."}
 	}
@@ -49,6 +66,10 @@ func (h *Handler) isOwnerOrAdmin(c echo.Context, objectID string, objectType str
 		createdByID = v.CreatedByID
 	case *model.Entry:
 		createdByID = v.CreatedByID
+	case *model.Vote:
+		createdByID = v.CreatedByID
+	case *model.Comment:
+		createdByID = v.CreatedByID
 	}
 
 	if reqUser.IsAdmin == false && reqUser.ID != createdByID {
@@ -61,6 +82,10 @@ func (h *Handler) isOwnerOrAdmin(c echo.Context, objectID string, objectType str
 
 func isSelfOrAdmin(c echo.Context, userID string) error {
 	reqUser := c.Get("user").(*model.AuthUser)
+
+	if _, err := uuid.Parse(userID); err != nil {
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid UUID."}
+	}
 
 	if reqUser.IsAdmin == false && reqUser.ID != userID {
 		log.Println("User is not admin and is not owner of object.")
