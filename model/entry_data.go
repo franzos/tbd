@@ -1,5 +1,6 @@
 package model
 
+// TODO: Maybe call description 'body' instead?
 type BaseEntry struct {
 	Title       string  `json:"title" validate:"required"`
 	Description string  `json:"description" validate:"required"`
