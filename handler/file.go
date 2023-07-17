@@ -167,6 +167,10 @@ func (h *Handler) DownloadFile(c echo.Context) error {
 	id := c.Param("id")
 	filePath := c.QueryParam("path")
 
+	if _, err := uuid.Parse(id); err != nil {
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid UUID"}
+	}
+
 	if filePath == "" {
 		file := model.File{}
 		r := h.DB.First(&file, "id = ?", id)

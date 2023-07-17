@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jaswdr/faker"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -51,6 +52,9 @@ func (h *Handler) FetchUsers(c echo.Context) error {
 
 func (h *Handler) FetchUser(c echo.Context) error {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid entry ID"}
+	}
 
 	var user = model.User{ID: id}
 
@@ -89,9 +93,7 @@ func usernameFromSignup(u model.SignupUserReq, tryCount int) (string, error) {
 	username := ""
 
 	if u.Username != "" {
-		if !model.IsValidUsername(u.Username) {
-			return "", &echo.HTTPError{Code: http.StatusBadRequest, Message: "Username can only contain letters, numbers, and other url-safe characters."}
-		}
+		// We expect validation to happen at an earlier stage
 		username = u.Username
 	} else if u.Name != "" {
 		// Merge spaces with dot, lowercase, and trim
@@ -114,8 +116,15 @@ func (h *Handler) Signup(c echo.Context) error {
 		return err
 	}
 
+	// TODO: Merge validation
 	if err := c.Validate(&u); err != nil {
 		return err
+	}
+
+	u.Strip()
+	err := u.Validate()
+	if err != nil {
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: err.Error()}
 	}
 
 	// Hash password
@@ -123,36 +132,22 @@ func (h *Handler) Signup(c echo.Context) error {
 	if err != nil {
 		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
-	// TODO: Set unconfirmed until email or phone is confirmed
 
+	// TODO: Set unconfirmed until email or phone is confirmed
 	newUser := model.User{
 		Roles:    []string{"member"},
 		Password: string(hash),
 	}
 
 	if u.Name != "" {
-		newUser.Name = u.Name
+		newUser.Name = &u.Name
 	}
 
-	if u.Email != "" && u.Phone != "" {
-		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Email or phone is required to signup."}
-	}
-
-	if u.Email != "" {
-		newUser.Email = model.StripEmail(u.Email)
-		if !model.IsValidEmail(*newUser.Email) {
-			return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid email."}
-		}
-	} else {
+	if u.Email == "" {
 		newUser.Email = nil
 	}
 
 	if u.Phone != "" {
-		newUser.Phone = model.StripPhone(u.Phone)
-		if !model.IsValidPhone(*newUser.Phone) {
-			return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid phone number."}
-		}
-	} else {
 		newUser.Phone = nil
 	}
 
@@ -199,8 +194,7 @@ func (h *Handler) Signup(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
-	u.Password = ""
-	return c.JSON(http.StatusCreated, u)
+	return c.JSON(http.StatusCreated, newUser.ToUserPrivateFormat(os.Getenv("DOMAIN")))
 }
 
 func (h *Handler) Login(c echo.Context) error {
@@ -283,7 +277,7 @@ func (h *Handler) Me(c echo.Context) error {
 	reqUser := c.Get("user").(*model.AuthUser)
 
 	u := model.User{ID: reqUser.ID}
-	r := h.DB.First(&u)
+	r := h.DB.Model(model.User{}).Preload("Image").First(&u)
 	if r.Error != nil {
 		if r.Error == gorm.ErrRecordNotFound {
 			return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
@@ -291,9 +285,7 @@ func (h *Handler) Me(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError}
 	}
 
-	u.Password = ""
-	u.PrivateKey = ""
-	return c.JSON(http.StatusOK, u)
+	return c.JSON(http.StatusOK, u.ToUserPrivateFormat(os.Getenv("DOMAIN")))
 }
 
 func (h *Handler) UpdateMe(c echo.Context) error {
@@ -322,15 +314,15 @@ func (h *Handler) UpdateMe(c echo.Context) error {
 	}
 
 	if nu.Image != nil {
-		current := model.User{ID: reqUser.ID}
-		r := h.DB.First(&current).Preload("Image")
+		r := h.DB.Model(&model.User{ID: reqUser.ID}).Update("image_id", nu.Image.ID)
 		if r.Error != nil {
 			if r.Error == gorm.ErrRecordNotFound {
 				return &echo.HTTPError{Code: http.StatusNotFound, Message: "User not found. Please try again later."}
 			}
+			return &echo.HTTPError{Code: http.StatusInternalServerError}
 		}
+
 		// TODO: Delete current image
-		h.DB.Model(&r).Association("Image").Replace(&nu.Image)
 	}
 
 	return c.JSON(http.StatusOK, UpdateResponse{Updated: 1})

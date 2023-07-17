@@ -44,7 +44,7 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
-	db.AutoMigrate(&model.User{}, &model.Entry{}, &model.File{})
+	db.AutoMigrate(&model.User{}, &model.Entry{}, &model.File{}, model.Comment{}, model.City{}, model.Vote{})
 
 	// e.Use(middleware.Logger())
 
@@ -105,13 +105,25 @@ func main() {
 	e.GET("/entries/by-country/count", h.EntriesByCountry)
 	e.GET("/entries/by-type/count", h.EntriesByType)
 	e.GET("/entries/:id", h.FetchEntry)
+	e.GET("/entries/:id", h.FetchEntry)
 	e.PATCH("/entries/:id", h.UpdateEntry)
 	e.DELETE("/entries/:id", h.DeleteEntry)
+
+	e.GET("/search", h.Search)
 
 	e.GET("/files", h.FetchFiles)
 	e.POST("/files/multi", h.CreateFiles)
 	e.DELETE("/files/:id", h.DeleteFile)
 	e.GET("/files/:id/download", h.DownloadFile)
+
+	e.GET("/comments", h.FetchComments)
+	e.POST("/comments", h.MakeComment)
+	e.PATCH("/comments/:id", h.EditComment)
+	e.DELETE("/comments/:id", h.DeleteComment)
+
+	e.GET("/votes", h.FetchVotes)
+	e.POST("/votes", h.CastVote)
+	e.DELETE("/votes/:id", h.DeleteVote)
 
 	e.GET("/account/me", h.Me)
 	e.PATCH("/account/me", h.UpdateMe)

@@ -2,10 +2,9 @@ package model
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"os"
-	"regexp"
-	"strings"
 	"tbd/pgp"
 	"time"
 
@@ -18,9 +17,9 @@ import (
 // Primary user struct for DB interactions
 type User struct {
 	ID          string         `json:"id" gorm:"type:uuid;primarykey"`
-	ImageID     *string        `json:"image_id"`
-	Image       *File          `json:"image,omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	Name        string         `json:"name"`
+	ImageID     string         `json:"image_id"`
+	Image       *File          `json:"image" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Name        *string        `json:"name"`
 	Username    string         `json:"username" gorm:"uniqueIndex"`
 	Email       *string        `json:"email" gorm:"uniqueIndex" validate:"email"`
 	Phone       *string        `json:"phone,omitempty" gorm:"uniqueIndex"`
@@ -78,6 +77,20 @@ type PublicUser struct {
 	CreatedAt             time.Time   `json:"created_at"`
 }
 
+// User to be returned only on /me endpoint
+type PrivateUser struct {
+	ID                    string      `json:"id"`
+	Name                  *string     `json:"name"`
+	Email                 *string     `json:"email"`
+	Phone                 *string     `json:"phone"`
+	Image                 PublicFile  `json:"image,omitempty"`
+	Username              string      `json:"username"`
+	UsernameWithLocalPart string      `json:"username_with_local_part"`
+	Profile               UserProfile `json:"profile"`
+	PublicKey             string      `json:"public_key"`
+	CreatedAt             time.Time   `json:"created_at"`
+}
+
 func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
@@ -88,7 +101,7 @@ func (base *User) BeforeCreate(tx *gorm.DB) (err error) {
 	email := *base.Email
 	passphrase := os.Getenv("PGP_PASSPHRASE")
 
-	keyPair, err := pgp.GenerateKeyPair(name, email, passphrase)
+	keyPair, err := pgp.GenerateKeyPair(*name, email, passphrase)
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -120,6 +133,20 @@ func (user User) ToPublicFormat(domain string) interface{} {
 	}
 }
 
+func (user User) ToUserPrivateFormat(domain string) PrivateUser {
+	return PrivateUser{
+		ID:                    user.ID,
+		Name:                  user.Name,
+		Email:                 user.Email,
+		Phone:                 user.Phone,
+		Username:              user.Username,
+		UsernameWithLocalPart: UsernameWithLocalPart(user.Username, domain),
+		Profile:               user.Profile,
+		PublicKey:             user.PublicKey,
+		CreatedAt:             user.CreatedAt,
+	}
+}
+
 func (user User) IsAdmin() bool {
 	for _, v := range user.Roles {
 		if v == "admin" {
@@ -130,40 +157,41 @@ func (user User) IsAdmin() bool {
 	return false
 }
 
-func StripUsername(username string) string {
-	stripped := strings.ReplaceAll(username, " ", "")
-	return strings.ToLower(stripped)
-}
-
-func IsValidUsername(username string) bool {
-	length := len(username) >= 3 && len(username) <= 20
-	chars := regexp.MustCompile(`^[\w\-._~]+$`).MatchString(username)
-	return length && chars
-}
-
 func UsernameWithLocalPart(username, domain string) string {
 	return "@" + domain + ":" + username
 }
 
-func StripEmail(email string) *string {
-	stripped := strings.ReplaceAll(email, " ", "")
-	stripped = strings.ToLower(stripped)
-	return &stripped
+func (user SignupUserReq) Strip() {
+	if user.Username != "" {
+		user.Username = StripUsername(user.Username)
+	}
+	if user.Email != "" {
+		user.Email = *StripEmail(user.Email)
+	}
+	if user.Phone != "" {
+		user.Phone = *StripPhone(user.Phone)
+	}
 }
 
-func IsValidEmail(email string) bool {
-	return regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString(email)
-}
+func (user SignupUserReq) Validate() error {
+	if user.Username != "" {
+		if !IsValidUsername(user.Username) {
+			return errors.New("Invalid username")
+		}
+	}
+	if user.Email != "" {
+		if !IsValidEmail(user.Email) {
+			return errors.New("Invalid email")
+		}
+	}
+	if user.Phone != "" {
+		if !IsValidPhone(user.Phone) {
+			return errors.New("Invalid phone")
+		}
+	}
+	if user.Email == "" && user.Phone == "" {
+		return errors.New("Email or phone is required")
+	}
 
-func StripPhone(phone string) *string {
-	stripped := strings.ReplaceAll(phone, "-", "")
-	stripped = strings.ReplaceAll(stripped, " ", "")
-	stripped = strings.ReplaceAll(stripped, "(", "")
-	stripped = strings.ReplaceAll(stripped, ")", "")
-	stripped = strings.ToLower(stripped)
-	return &stripped
-}
-
-func IsValidPhone(phone string) bool {
-	return regexp.MustCompile(`^\+?[0-9]{10,15}$`).MatchString(phone)
+	return nil
 }

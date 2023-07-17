@@ -51,6 +51,8 @@ type PublicEntry struct {
 	CreatedBy       PublicUser     `json:"created_by,omitempty"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
+	UpVotes         *int64         `json:"up_votes"`
+	DownVotes       *int64         `json:"down_votes"`
 }
 
 func (base *Entry) BeforeCreate(tx *gorm.DB) (err error) {
@@ -105,6 +107,10 @@ func (e Entry) ToPublicFormat(domain string) interface{} {
 	pe.UpdatedAt = e.UpdatedAt
 
 	return pe
+}
+
+func (e PublicEntry) ToPublicFormat(domain string) interface{} {
+	return e
 }
 
 func EntryWithLocalPart(entryID, domain string) string {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/go-playground/validator"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 
@@ -36,7 +38,7 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 		queryParams.Limit = 20
 	}
 
-	var entries []model.Entry
+	var entries []model.PublicEntry
 	var count int64
 	var params []interface{}
 
@@ -103,6 +105,8 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 
 	for rows.Next() {
 		var entry model.Entry
+		var upvotes int64
+		var downvotes int64
 
 		if err := h.DB.ScanRows(rows, &entry); err != nil {
 			log.Println(err)
@@ -132,7 +136,38 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
-		entries = append(entries, entry)
+		// Query for votes
+		votesQuery := `SELECT 
+		SUM(CASE WHEN Vote = 0 THEN 1 ELSE 0 END) as up, 
+		SUM(CASE WHEN Vote = 1 THEN 1 ELSE 0 END) as down 
+		FROM votes 
+		WHERE entry_id = ?`
+		row := h.DB.Raw(votesQuery, entry.ID).Row()
+
+		var up sql.NullInt64
+		var down sql.NullInt64
+		if err := row.Scan(&up, &down); err != nil {
+			log.Println(err)
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+
+		if up.Valid {
+			upvotes = up.Int64
+		} else {
+			upvotes = 0
+		}
+
+		if down.Valid {
+			downvotes = down.Int64
+		} else {
+			downvotes = 0
+		}
+
+		pub := entry.ToPublicFormat(os.Getenv("DOMAIN")).(model.PublicEntry)
+		pub.UpVotes = &upvotes
+		pub.DownVotes = &downvotes
+
+		entries = append(entries, pub)
 	}
 
 	if err := h.DB.Raw(countQuery, params...).Count(&count).Error; err != nil {
@@ -142,14 +177,20 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 
 	return c.JSON(
 		http.StatusOK,
-		ListResponse{Total: count, Items: responseArrFormatter[model.Entry](entries, nil, os.Getenv("DOMAIN"))},
+		ListResponse{
+			Total: count,
+			Items: responseArrFormatter[model.PublicEntry](entries, nil, os.Getenv("DOMAIN")),
+		},
 	)
 }
 
 func (h *Handler) FetchEntry(c echo.Context) error {
 	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return &echo.HTTPError{Code: http.StatusBadRequest, Message: "Invalid entry ID"}
+	}
 
-	var entry = model.Entry{ID: id}
+	entry := model.Entry{ID: id}
 
 	err := h.DB.Model(&model.Entry{}).Preload("CreatedBy").Preload("Files").Preload("City").First(&entry).Error
 	if err != nil {
