@@ -1,10 +1,16 @@
 # TBD
 
+SHUTDOWN: I started working on this project to build a better community platform - until I discovered Nostr, which is what TBD could / should have been. I'm now working on Nostr instead. Checkout my Nostr library and web client here: https://github.com/franzos/nostr-ts.
+
+---
+
 Tldr: Modern classifieds with trust and built-in actions like reservations, payments, shipping, etc. that optionally consume other classifieds.
 
 Vue.js and React front-end as well as Typescript libraries: [tbd-client](https://github.com/franzos/tbd-client)/
 
 After having played with Pocketbase recently, I felt motivated to use go for my next backend project. The name is yet to be determined, but I have a rough idea where this is heading.
+
+*The state has made us dependent on itself; Time to depend on one another.*
 
 ## Quickstart
 
@@ -42,6 +48,7 @@ AWS_SECRET_ACCESS_KEY=
 AWS_BUCKET_NAME=
 AWS_REGION=
 DB_PATH=tbd.db
+DOMAIN=
 ```
 
 ## Development
@@ -120,3 +127,13 @@ Rough outline:
 To express it in different terms, a larger community may be something like Alibaba, where vendors from a whole country come together, compared to going to a local market, where vendors gather with regional goods, in a more authentic atmosphere. On Alibaba you can pay with credit card and in any currency, and on the local market they may only take cash. Of course communities are more than buying and selling, but this is just the start.
   
 For now I'll focus on getting one community up and running, with a market place, and a few entry types.
+
+## Considerations
+
+- Files: IPFS would be great but will add a lot of overhead on smaller nodes
+- Signing: There will be two options: Having the key on the server (low security) or having the key on a mobile device (high security)
+  - Low security is mostly for development but could still be useful in production to lower the bar of entry (user could migrate later)
+  - Medium security: use user password? but if an attacker has access to the server, they can intercept the password
+  - High security might involve an app that allows signing and posting directly (so the server doesn't need / store the key)
+  - Maybe offer the option to store as file on user device instead (desktop, mobile, etc.) and sign in browser but that's too inconvenient
+  - JSON keys?

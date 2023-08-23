@@ -73,7 +73,7 @@ func (c City) ToPublicFormat() PublicCity {
 
 	pc.ID = c.ID
 	pc.Slug = c.Slug
-	pc.GlobID = c.ID + ":" + c.Slug
+	pc.GlobID = c.CountryCode + ":" + c.Slug
 	pc.Name = c.Name
 	pc.CountryCode = c.CountryCode
 	// Default, to be removed once we have i18n

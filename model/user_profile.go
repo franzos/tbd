@@ -10,13 +10,20 @@ type Link struct {
 	Name string `json:"name"`
 }
 
+type ContactInfo struct {
+	Medium   string `json:"medium"`
+	Handle   string `json:"handle"`
+	IsPublic bool   `json:"is_public"`
+}
+
 func (link *Link) ToJson() string {
 	return fmt.Sprintf(`{"url": "%s", "name": "%s"}`, link.Url, link.Name)
 }
 
 type UserProfile struct {
-	Links       []Link `json:"links"`
-	Description string `json:"description"`
+	Links             []Link        `json:"links"`
+	PublicContactInfo []ContactInfo `json:"public_contact_info"`
+	Description       string        `json:"description"`
 }
 
 func (profile *UserProfile) IsEmpty() bool {

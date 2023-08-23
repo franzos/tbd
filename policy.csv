@@ -6,6 +6,8 @@ p, anonymous, /entries/:id, read
 p, anonymous, /entries/by-city/count, read
 p, anonymous, /entries/by-country/count, read
 p, anonymous, /entries/by-type/count, read
+p, anonymous, /comments, read
+p, anonymous, /votes, read
 p, member, /users, read
 p, member, /users/:id, write
 p, member, /entries, write
@@ -15,5 +17,9 @@ p, member, /files/multi, write
 p, member, /files/:id, write
 p, member, /account/me, read
 p, member, /account/me, write
+p, member, /comments, write
+p, member, /comments/:id, write
+p, member, /votes, write
+p, member, /votes/:id, write
 g, anonymous, member
 g, member, admin

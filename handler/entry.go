@@ -92,9 +92,6 @@ func (h *Handler) FetchEntries(c echo.Context) error {
 	query += " ORDER BY entries.created_at DESC LIMIT ? OFFSET ?"
 	params = append(params, queryParams.Limit, queryParams.Offset)
 
-	fmt.Println("Final query: ", query)
-	fmt.Println("Parameters: ", params)
-
 	// Run the queries
 	rows, err := h.DB.Raw(query, params...).Rows()
 	if err != nil {
@@ -200,9 +197,27 @@ func (h *Handler) FetchEntry(c echo.Context) error {
 		return &echo.HTTPError{Code: http.StatusInternalServerError, Message: "Failed to fetch entry."}
 	}
 
+	votesQuery := `SELECT 
+		IFNULL(SUM(CASE WHEN Vote = 0 THEN 1 ELSE 0 END), 0) as up, 
+		IFNULL(SUM(CASE WHEN Vote = 1 THEN 1 ELSE 0 END), 0) as down 
+		FROM votes 
+		WHERE entry_id = ?`
+	row := h.DB.Raw(votesQuery, entry.ID).Row()
+
+	var upvotes int64
+	var downvotes int64
+	if err := row.Scan(&upvotes, &downvotes); err != nil {
+		log.Println(err)
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	publicEntry := entry.ToPublicFormat(os.Getenv("DOMAIN")).(model.PublicEntry)
+	publicEntry.UpVotes = &upvotes
+	publicEntry.DownVotes = &downvotes
+
 	return c.JSON(
 		http.StatusOK,
-		responseFormatter[model.Entry](entry, nil, os.Getenv("DOMAIN")),
+		responseFormatter[model.PublicEntry](publicEntry, nil, os.Getenv("DOMAIN")),
 	)
 }
 
@@ -473,22 +488,31 @@ func (h *Handler) EntriesByType(c echo.Context) error {
 	}
 
 	// Extract query parameters
-	city := c.QueryParam("city")
+	citySlug := c.QueryParam("city_slug")
 	country := c.QueryParam("country")
 
 	var results []Result
 	var query string
 	var params []interface{}
 
-	// Construct the SQL query based on the query parameters
-	if city != "" {
-		query = `SELECT type, COUNT(*) AS results FROM entries WHERE JSON_EXTRACT(data, '$.address.city') = ? GROUP BY type`
-		params = append(params, city)
+	if citySlug != "" {
+		query = `SELECT entries.type, COUNT(*) AS results
+				 FROM entries 
+				 INNER JOIN cities ON entries.city_id = cities.id 
+				 WHERE cities.slug = ? 
+				 GROUP BY entries.type`
+		params = append(params, citySlug)
 	} else if country != "" {
-		query = `SELECT type, COUNT(*) AS results FROM entries WHERE JSON_EXTRACT(data, '$.address.country') = ? GROUP BY type`
+		query = `SELECT entries.type, COUNT(*) AS results
+				 FROM entries 
+				 INNER JOIN cities ON entries.city_id = cities.id 
+				 WHERE cities.country_code = ? 
+				 GROUP BY entries.type`
 		params = append(params, country)
 	} else {
-		query = `SELECT type, COUNT(*) AS results FROM entries GROUP BY type`
+		query = `SELECT entries.type, COUNT(*) AS results
+				 FROM entries 
+				 GROUP BY entries.type`
 	}
 
 	h.DB.Raw(query, params...).Scan(&results)
